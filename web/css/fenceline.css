@@ -51,6 +51,10 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .logo { font-family: var(--f-display); font-size: 26px; letter-spacing: .04em; line-height: 1; }
 .logo i { font-style: normal; color: var(--accent); }
 .sub { color: var(--muted); font-size: 13px; }
+.hosted { margin: 0; padding: 9px 12px; border: 1px dashed var(--ghost); border-radius: 6px; background: var(--surface); font-size: 13px; color: var(--ink); }
+.hosted a { color: var(--ghost); font-weight: 600; white-space: nowrap; }
+a.filebtn { color: inherit; text-decoration: none; }
+
 .simpill { font-family: var(--f-display); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 5px 9px; border: 1px dashed var(--muted); color: var(--muted); border-radius: 4px; }
 
 .hud { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }

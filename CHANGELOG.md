@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Hosted copies (GitHub Pages) open in Demo, with a banner linking to the repository, instead of an empty Live feed that can't reach the visitor's Mac. Local copies still open in Live. `?feed=demo|replay|live` overrides either.
+- Replay links: `?replay=replays/<name>.jsonl` plays a file published with the site. Same origin only, so a link can't make the page show someone else's fabricated feed.
+- A **Copy link** button on hosted copies shares the demo or the replay on screen.
+- New replay, `poisoned-package.jsonl`: an npm install script reads AWS and npm credentials and uploads them while Claude Code reports a clean run.
+- Link previews (Open Graph and Twitter card) with a 1200×630 image, and a README GIF. `npm run media` re-records both.
+- The Pages deploy validates events and publishes the replays and preview image.
+
 - Unreported actions are a breach only when they reach the internet or a sensitive file (SSH, cloud and registry credentials, Keychain, LaunchAgents, browser logins). Other unreported local processes, files and private-network connections are a check, so routine background work doesn't raise incidents.
 - Each Claude Code session gets its own character, named after its project, and log rows say which project they came from. Events carry a `session` field.
 - `npm run install-hooks` adds the hooks for every Claude Code session on the Mac (or one project with `--project`), keeping other settings; `npm run uninstall-hooks` removes them.
