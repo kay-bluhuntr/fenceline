@@ -3,7 +3,7 @@
 // The loop only runs while something on the map is changing. When the map is
 // still (paused, or agents asleep in live mode) no frames are drawn at all,
 // and a new event or click wakes it again.
-import { LIMITS } from './config.js';
+import { LIMITS, REPO_URL } from './config.js';
 import {
   state, hooks, setLayout, restoreSlots, resetWorld, clearWorld, dispatch, step,
   ageHighlights, activity, targetPoint, clockStr, nowStr, debugCounts, workspaceHeading
@@ -108,8 +108,8 @@ $('#reset').addEventListener('click', () => {
 
 const PILL = { demo: 'Simulated feed', file: 'Replaying file', live: 'Live feed' };
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
-function setMode(m) {
-  if (m === state.mode) return;
+function setMode(m, force = false) {
+  if (m === state.mode && !force) return;
   if (state.mode === 'live') feed.disconnect();
   state.mode = m;
   document.querySelectorAll('[data-mode]').forEach(x => x.setAttribute('aria-pressed', x.dataset.mode === m ? 'true' : 'false'));
@@ -118,6 +118,7 @@ function setMode(m) {
   $('#modePill').textContent = PILL[m];
   $('#inject').disabled = m !== 'demo';
   clearWorld();
+  updateShare();
   if (m === 'demo') { warmup(6); setStatus('Scripted demo events. Switch to Replay file or Live to drive the map with your own events.'); }
   else if (m === 'file') { if (feed.hasReplay()) feed.startReplay(); else setStatus('Choose a .jsonl file with one event per line. The format is described at the bottom of the page.'); }
   else {
@@ -126,6 +127,26 @@ function setMode(m) {
   }
   wake();
 }
+
+/* ---------- sharing (hosted copies only) ---------- */
+// A link to what's on screen: the demo, or a replay that was opened from a link.
+// Live and picked files can't be shared, because they only exist on this Mac.
+const shareBtn = $('#share');
+function shareUrl() {
+  const u = new URL(location.href);
+  u.search = ''; u.hash = '';
+  if (state.mode === 'demo') u.searchParams.set('feed', 'demo');
+  else if (state.mode === 'file' && feed.replayLink()) u.searchParams.set('replay', feed.replayLink());
+  else return '';
+  return u.toString();
+}
+function updateShare() { shareBtn.hidden = feed.isLocalPage || !shareUrl(); }
+shareBtn.addEventListener('click', async () => {
+  const url = shareUrl();
+  if (!url) return;
+  try { await navigator.clipboard.writeText(url); setStatus('Link copied. Anyone with it sees this replay in their browser.', 'ok'); }
+  catch { setStatus(`Copy this link to share: ${url}`, 'ok'); }
+});
 
 /* ---------- environment ---------- */
 const redraw = () => { readColours(); wake(); };
@@ -143,9 +164,26 @@ if (document.fonts?.ready) document.fonts.ready.then(() => { invalidate(); wake(
 window.fencelineDebug = debugCounts;
 
 /* ---------- boot ---------- */
+// Locally (npm start or the file opened from disk) Fenceline watches this Mac, so it
+// opens Live. A hosted copy can't see the visitor's Mac, so it opens the demo instead.
+// ?feed=demo|replay|live and ?replay=<path on this site> override either.
+const params = new URLSearchParams(location.search);
+const FEED_PARAM = { demo: 'demo', replay: 'file', file: 'file', live: 'live' };
+const replayParam = params.get('replay');
+const startMode = replayParam ? 'file' : FEED_PARAM[params.get('feed')] || (feed.isLocalPage ? 'live' : 'demo');
+
+if (!feed.isLocalPage) {
+  $('#hosted').hidden = false;
+  $('#hostedRepo').href = REPO_URL;
+  $('#sampleReplay').hidden = false;
+  $('#brandSub').textContent = 'Simulated session';
+}
+feed.onReplayLoaded(updateShare);
+
 setLayout(resize());
 restoreSlots();
 resetWorld();
-setMode('live');
+setMode(startMode, true);
+if (replayParam) feed.loadReplayUrl(replayParam);
 statsChanged(state.stats);
 wake();

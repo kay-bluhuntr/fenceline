@@ -13,8 +13,12 @@ export const LIMITS = Object.freeze({
   idleSleepSec: 8,      // an idle agent stops wandering (and the loop sleeps)
   maxMessageBytes: 1_000_000,
   maxLinesPerMessage: 500,
-  maxFieldChars: 400    // longer text from events is clipped before display
+  maxFieldChars: 400,   // longer text from events is clipped before display
+  maxReplayBytes: 5_000_000  // largest .jsonl a replay link will load
 });
+
+// Where hosted visitors are sent to install Fenceline on their own Mac.
+export const REPO_URL = 'https://github.com/kay-bluhuntr/fenceline';
 
 // Domains every agent is expected to reach. Anything else gets a "new" building.
 export const ALLOWLIST = ['anthropic.com', 'github.com', 'npmjs.org', 'terraform.io'];

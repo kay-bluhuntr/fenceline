@@ -5,12 +5,12 @@ import { clip, normalize, parseLines } from './events.js';
 import { setStatus } from './ledger.js';
 import { LIMITS, ALLOWLIST } from './config.js';
 
-let replayRaw = [], ws = null, wake = () => {}, wsBtn, urlInput;
+let replayRaw = [], replaySrc = '', ws = null, wake = () => {}, wsBtn, urlInput;
 // Live mode keeps trying to reach the collector until the user stops it,
 // so starting the collector after the page (or restarting it) just works.
 let retryTimer = 0, retryDelay = 0, wantLive = false;
 const RETRY_MIN_MS = 1000, RETRY_MAX_MS = 15000;
-const isLocalPage = location.protocol === 'file:' || ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+export const isLocalPage = location.protocol === 'file:' || ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 let lastProblem = '';
 let observerNote = '';   // from the collector's status message: which OS observer is running
 
@@ -70,6 +70,45 @@ export function tickReplay() {
   }
 }
 
+/** The same-origin path of the replay loaded from a link, or '' for a picked file. */
+export function replayLink() { return replaySrc; }
+
+/**
+ * Loads a replay from a path on this site, as in ?replay=replays/poisoned-package.jsonl.
+ * Same origin only: a link must not be able to make this page show a feed from
+ * somewhere else, because a fabricated breach would look like the real thing.
+ */
+export async function loadReplayUrl(path) {
+  const name = clip(String(path), 80);
+  if (location.protocol === 'file:') { setStatus('Replay links work on the hosted page or with npm start. Choose the file instead.', 'bad'); return false; }
+  let url;
+  try { url = new URL(String(path), location.href); } catch { url = null; }
+  if (!url || url.origin !== location.origin || !/\.(jsonl|ndjson|json)$/i.test(url.pathname)) {
+    setStatus('Replay links can only open .jsonl files from this site. Choose the file instead.', 'bad');
+    return false;
+  }
+  setStatus(`Loading ${name}…`);
+  try {
+    const res = await fetch(url, { credentials: 'omit', cache: 'no-cache' });
+    if (!res.ok) throw new Error(`the site answered ${res.status}`);
+    if (Number(res.headers.get('content-length')) > LIMITS.maxReplayBytes) throw new Error('the file is too large');
+    const text = await res.text();
+    if (text.length > LIMITS.maxReplayBytes) throw new Error('the file is too large');
+    if (state.mode !== 'file') return false;   // the user switched feeds while it loaded
+    replayRaw = parseLines(text);
+    if (!replayRaw.length) { setStatus(`${name} has no events in it.`, 'bad'); return false; }
+    const base = new URL('.', location.href).pathname;
+    replaySrc = url.pathname.startsWith(base) ? url.pathname.slice(base.length) : url.pathname;
+    clearHook();
+    startReplay();
+    loadedHook();
+    return true;
+  } catch (e) {
+    setStatus(`Couldn't load ${name}: ${e.message}. Choose the file instead.`, 'bad');
+    return false;
+  }
+}
+
 function onFile(ev) {
   const f = ev.target.files && ev.target.files[0];
   if (!f) return;
@@ -78,14 +117,17 @@ function onFile(ev) {
     replayRaw = parseLines(String(rd.result));
     ev.target.value = '';
     if (!replayRaw.length) { setStatus(`${f.name} has no events in it.`, 'bad'); return; }
+    replaySrc = '';
     clearHook();
     startReplay();
+    loadedHook();
   };
   rd.onerror = () => setStatus(`Couldn't read ${f.name}. Try choosing it again.`, 'bad');
   rd.readAsText(f);
 }
-let clearHook = () => {};
+let clearHook = () => {}, loadedHook = () => {};
 export function onClear(fn) { clearHook = fn; }
+export function onReplayLoaded(fn) { loadedHook = fn; }
 
 /* ---------- live ---------- */
 export function disconnect() {

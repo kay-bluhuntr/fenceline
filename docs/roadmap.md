@@ -18,6 +18,11 @@
 - Every Claude Code session on the Mac, each as its own character, with a hook installer.
 - Observations attributed by process group: parallel calls and background tasks.
 
+## Launch
+
+- Hosted page opens in Demo with a link to the repository; replay links and Copy link for sharing.
+- A curated replay (poisoned npm package), README GIF and link-preview image.
+
 ## v0.3: making it useful day to day
 
 - Timeline scrubber to replay any moment of a session.
