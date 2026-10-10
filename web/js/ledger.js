@@ -7,6 +7,7 @@ import { esc } from './events.js';
 let logEl, incEl, statusEl, incCountEl, statEls, onSelect = () => {};
 let pendingRows = [], pendingInc = [], pendingStats = null, scheduled = false, incidents = 0, quiet = false;
 const rowEvent = new WeakMap();
+const SAMPLED_HINT = 'Found by periodic sampling. Real, but quick actions between samples can be missed.';
 
 export function initLedger(opts) {
   ({ logEl, incEl, statusEl, incCountEl, statEls } = opts);
@@ -74,11 +75,16 @@ function pills(e) {
   else if (e.v === 'warn') out.push('<span class="pill warn">Check</span>');
   else out.push(`<span class="pill ok">${e.z === 'fence' ? 'Inside' : 'Allowed'}</span>`);
   if (e.unreported) out.push('<span class="pill ghost">Seen only</span>');
+  if (e.seen.length && e.seen.every(([, , sampled]) => sampled)) {
+    out.push(`<span class="pill sampled" title="${SAMPLED_HINT}">Sampled</span>`);
+  }
   return out.join('');
 }
 function seenHtml(e) {
   if (!e.arrived && !e.unreported) return '<div class="ln wait"><b>SEEN</b><code>waiting for OS event…</code></div>';
-  return e.seen.map(([src, t]) => `<div class="ln"><b>${esc(src)}</b><code>${esc(t)}</code></div>`).join('');
+  return e.seen.map(([src, t, sampled]) => sampled
+    ? `<div class="ln sampled"><b title="${SAMPLED_HINT}">${esc(src)}</b><code>${esc(t)}</code></div>`
+    : `<div class="ln"><b>${esc(src)}</b><code>${esc(t)}</code></div>`).join('');
 }
 function buildRow(e) {
   const li = document.createElement('li');
@@ -87,7 +93,7 @@ function buildRow(e) {
   li.dataset.ev = '';
   const agent = AGENTS[e.a];
   li.innerHTML = `
-    <div class="rh"><time>${esc(e.clock)}</time><span class="chip ${e.a === 'copilot' ? 'copilot' : 'claude'}">${esc(agent.name)}</span><span class="t">${esc(e.title)}</span>${pills(e)}</div>
+    <div class="rh"><time>${esc(e.clock)}</time><span class="chip ${e.a === 'copilot' ? 'copilot' : 'claude'}">${esc(agent.name)}${e.sessionLabel ? ` · ${esc(e.sessionLabel)}` : ''}</span><span class="t">${esc(e.title)}</span>${pills(e)}</div>
     <div class="ln${e.said ? '' : ' none'}"><b>SAID</b><code>${e.said ? esc(e.said) : 'nothing reported'}</code></div>
     <div class="seen">${seenHtml(e)}</div>
     ${e.rule ? `<div class="rule">${esc(e.rule)}</div>` : ''}`;

@@ -6,7 +6,7 @@ import * as ledger from './ledger.js';
 export const state = {
   W: 720, H: 500, s: 1, portrait: null, L: null,
   tiles: [], tools: [], vault: [],
-  walkers: {}, ghosts: [], trails: [], rings: [], cracks: [], highlights: [],
+  walkers: {}, sessions: new Map(), ghosts: [], trails: [], rings: [], cracks: [], highlights: [],
   buildings: {}, hot: {}, lastUsed: {},
   stats: { events: 0, outside: 0, ghost: 0, breach: 0, fastForwarded: 0 },
   simT: 0, fenceAlarm: 0, renders: 0,
@@ -73,11 +73,15 @@ export function restoreSlots() {
 }
 
 /* ---------- reset ---------- */
+function makeWalker(id, agent) {
+  return { id, agent, label: null, session: null, x: 0, y: 0, path: [], queue: [], task: null, state: 'idle',
+    wait: .3 + Math.random(), trail: null, phase: Math.random() * 6, idleFor: 0, asleep: false };
+}
+
 export function resetWorld() {
   state.walkers = {};
-  for (const id of ['claude', 'copilot']) {
-    state.walkers[id] = { id, x: 0, y: 0, path: [], queue: [], task: null, state: 'idle', wait: .3 + Math.random(), trail: null, phase: Math.random() * 6, idleFor: 0, asleep: false };
-  }
+  state.sessions = new Map();
+  for (const id of ['claude', 'copilot']) state.walkers[id] = makeWalker(id, id);
   centreWalkers();
   Object.assign(state, {
     ghosts: [], trails: [], rings: [], cracks: [], highlights: [],
@@ -93,6 +97,7 @@ export function clearWorld() {
   restoreSlots();
   resetWorld();
   setWorkspace(DEFAULT_WORKSPACE);
+  hooks.onWorkspace(state.workspace);   // sessions were cleared even if the name didn't change
   const hint = { file: 'Choose a .jsonl file to replay it here.', live: 'Connect to a collector to see live events here.' }[state.mode];
   ledger.clearLedger(hint);
   ledger.statsChanged(state.stats);
@@ -239,8 +244,46 @@ export function clockStr(t) {
 export function fmtTs(ts) { const d = new Date(ts); return isNaN(d) ? null : d.toLocaleTimeString('en-GB', { hour12: false }); }
 export function nowStr() { return new Date().toLocaleTimeString('en-GB', { hour12: false }); }
 
+// Each agent session gets its own character, named after its project. The first session of
+// an agent takes over that agent's character; later ones get new characters up to a cap.
+function walkerFor(step) {
+  if (!step.session) return state.walkers[step.a];
+  const known = state.sessions.get(step.session);
+  if (known) return state.walkers[known.walker];
+  const project = String(step.workspace || '').split('/').filter(Boolean).pop() || `session ${step.session.slice(0, 6)}`;
+  const taken = new Set([...state.sessions.values()].map(s => s.label));
+  let label = project;
+  for (let n = 2; taken.has(label); n++) label = `${project} ${n}`;
+  const base = state.walkers[step.a];
+  let w = base;
+  if (base.session) {
+    if (Object.keys(state.walkers).length < LIMITS.maxWalkers) {
+      w = makeWalker(`${step.a}:${step.session}`, step.a);
+      state.walkers[w.id] = w;
+      const f = state.L.fence;
+      w.x = f.x + f.w * (.3 + Math.random() * .4); w.y = f.y + f.h * (.35 + Math.random() * .3);
+    } else label = `${label} (shared)`;   // over the cap: drawn by the agent's first character
+  }
+  if (!w.session) { w.session = step.session; w.label = label; }
+  state.sessions.set(step.session, { walker: w.id, label, workspace: step.workspace || '' });
+  showSessions();
+  return w;
+}
+
+function showSessions() {
+  // The map's fence label stays short; the header lists the sessions.
+  if (state.sessions.size > 1) setWorkspace(`${state.sessions.size} sessions`);
+}
+
+/** Header text: the workspace, or the sessions when there are several. */
+export function workspaceHeading() {
+  if (state.sessions.size <= 1) return `workspace ${state.workspace}`;
+  return clip(`${state.sessions.size} sessions: ${[...state.sessions.values()].map(s => s.label).join(', ')}`, 120);
+}
+
 export function dispatch(step) {
-  if (step.workspace) setWorkspace(step.workspace);
+  const w = walkerFor(step);
+  if (step.workspace && state.sessions.size <= 1) setWorkspace(step.workspace);
   const v = verdictFor(step);
   if (step.z === 'net') {
     const b = getBuilding(step.k, v === 'breach');
@@ -248,13 +291,13 @@ export function dispatch(step) {
   }
   const e = {
     ...step, v, rule: v === 'ok' ? undefined : step.rule,
+    sessionLabel: step.session ? state.sessions.get(step.session)?.label : undefined,
     unreported: !step.said, at: state.simT, arrived: false, queued: false, rowEl: null
   };
   e.clock = (step.ts && fmtTs(step.ts)) || (state.mode === 'live' ? nowStr() : clockStr(state.simT));
   if (step.ts && fmtTs(step.ts)) state.lastTs = e.clock;
   state.lastUsed[e.z + ':' + e.k] = state.simT;
 
-  const w = state.walkers[e.a];
   w.asleep = false; w.idleFor = 0;
   // Log every event when it happens; unreported ones already carry their OS observation.
   ledger.queueRow(e);
@@ -382,6 +425,7 @@ export function activity() {
 export function debugCounts() {
   return {
     walkerQueue: Object.values(state.walkers).reduce((n, w) => n + w.queue.length, 0),
+    walkers: Object.values(state.walkers).map(w => w.label || w.id),
     ghosts: state.ghosts.length, trails: state.trails.length, rings: state.rings.length,
     fastForwarded: state.stats.fastForwarded, renders: state.renders
   };

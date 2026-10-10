@@ -38,10 +38,11 @@
     "verdict": {
       "type": "string",
       "enum": ["ok", "warn", "breach", "allow", "allowed", "warning", "check", "block", "blocked", "alert"],
-      "description": "Optional. If omitted, Fenceline decides: unreported outside the workspace is a breach; elsewhere on the machine is a warning."
+      "description": "Optional. If omitted, Fenceline decides: an unreported internet connection or sensitive-file access is a breach; other unreported actions outside the workspace are a warning (see docs/architecture.md#verdicts)."
     },
     "rule": { "type": "string", "maxLength": 400, "description": "Why the verdict was given, shown under the row." },
-    "workspace": { "type": "string", "maxLength": 200, "description": "Label for the fenced workspace, e.g. ~/code/payments-api." }
+    "workspace": { "type": "string", "maxLength": 200, "description": "Label for the fenced workspace, e.g. ~/code/payments-api." },
+    "session": { "type": "string", "maxLength": 100, "description": "Agent session ID. Each session gets its own character, named after its workspace folder." }
   },
   "additionalProperties": true,
   "$defs": {
@@ -50,7 +51,8 @@
       "required": ["text"],
       "properties": {
         "source": { "type": "string", "maxLength": 32, "description": "Short label such as hook, otel, es or net." },
-        "text": { "type": "string", "maxLength": 4000 }
+        "text": { "type": "string", "maxLength": 4000 },
+        "sampled": { "type": "boolean", "description": "true when the observer samples periodically and can miss short-lived actions. Shown as lower confidence." }
       },
       "additionalProperties": true
     }

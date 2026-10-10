@@ -149,11 +149,14 @@ td:last-child { color: var(--muted); }
 .pill.warn { color: var(--warn); }
 .pill.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
 .pill.ghost { color: var(--ghost); background: color-mix(in srgb, var(--ghost) 10%, transparent); }
+/* Sampled observations: real, but the observer can miss quick actions, so they read as lower confidence. */
+.pill.sampled { color: var(--muted); border-style: dashed; cursor: help; }
 .ln { font-family: var(--f-mono); font-size: 11.5px; line-height: 1.45; display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 6px; }
 .ln b { font-weight: 500; color: var(--muted); font-size: 10px; letter-spacing: .04em; padding-top: 1px; }
 .ln code { font-family: inherit; overflow-wrap: anywhere; }
 .ln.none code { color: var(--ghost); font-style: italic; }
 .ln.wait code { color: var(--muted); }
+.ln.sampled b { text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; }
 .rule { font-size: 12px; color: var(--muted); }
 
 .wiring { display: grid; gap: 12px; margin-top: 8px; }

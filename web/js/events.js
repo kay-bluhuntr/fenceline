@@ -63,6 +63,53 @@ export function vaultLabel(path) {
   return { known: null, label: clip(label, 14) };
 }
 
+// Credentials and persistence points: reading or changing these unreported is always a breach.
+const SENSITIVE_PATHS = [
+  /(^|\/)\.ssh(\/|$)/, /(^|\/)\.aws(\/|$)/, /(^|\/)\.gnupg(\/|$)/, /(^|\/)\.kube\/config$/,
+  /(^|\/)\.docker\/config\.json$/, /(^|\/)\.config\/gh(\/|$)/, /(^|\/)\.netrc$/, /(^|\/)\.npmrc$/, /(^|\/)\.pypirc$/,
+  /(^|\/)\.git-credentials$/, /[Kk]eychain/, /\/security(\s|$)/, /LaunchAgents|LaunchDaemons/,
+  /\/(Login Data|Cookies)$/, /\/(cookies|logins)\.(sqlite|json)$/
+];
+export function isSensitivePath(path) {
+  return SENSITIVE_PATHS.some((re) => re.test(String(path)));
+}
+
+/** True for loopback, private, link-local and shared (CGNAT/VPN) addresses, and local host names. */
+export function isPrivateHost(target) {
+  const h = String(target).toLowerCase().trim()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '').replace(/^[^@/]*@/, '').split(/[/?#]/)[0];
+  const v4 = h.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}(:\d+)?$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 192 && b === 168) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 100 && b >= 64 && b <= 127);
+  }
+  if (h.split(':').length > 2 || h.startsWith('[')) {
+    const v6 = h.replace(/^\[/, '').split(']')[0];
+    return v6 === '::1' || v6.startsWith('::1:') || /^f[cd][0-9a-f]{0,2}:/.test(v6) || v6.startsWith('fe80:');
+  }
+  const name = h.replace(/:\d+$/, '');
+  return name === 'localhost' || /\.(local|localhost|lan|internal|home\.arpa)$/.test(name);
+}
+
+/**
+ * Default verdict when the producer gives none. Only reaching the internet or touching a
+ * sensitive file without reporting it is a breach; other unreported actions are a check.
+ */
+export function defaultVerdict(z, target, unreported) {
+  if (z === 'fence') return 'ok';
+  if (!unreported) return z === 'vault' ? 'warn' : 'ok';
+  if (z === 'net') return isPrivateHost(target) ? 'warn' : 'breach';
+  if (z === 'vault') return isSensitivePath(target) ? 'breach' : 'warn';
+  return 'warn';
+}
+
+const UNREPORTED_RULE = {
+  net: (t) => isPrivateHost(t) ? 'Unreported connection on the local network' : 'Unreported connection to the internet',
+  vault: (t) => isSensitivePath(t) ? 'Unreported access to a sensitive file' : 'Unreported file access outside the workspace',
+  tools: () => 'Unreported local process'
+};
+
 // Accepts newline-delimited JSON or a single JSON array. Bad lines become { __bad }.
 export function parseLines(text) {
   const t = String(text).trim();
@@ -104,22 +151,25 @@ export function normalize(raw, { resolveKey = (z, t) => t, allowlist = [], maxCh
     : typeof raw.said === 'string' ? clip(raw.said, maxChars)
     : clip(raw.said.text || raw.said.source || 'reported', maxChars);
   const seenIn = Array.isArray(raw.seen) ? raw.seen : raw.seen ? [raw.seen] : [];
+  // Third item: true when the observer samples periodically, so short actions can slip past it.
   const seen = seenIn.slice(0, 8).map(x => typeof x === 'string'
-    ? ['SEEN', clip(x, maxChars)]
-    : [clip(String(x?.source || 'seen').toUpperCase(), 4), clip(x?.text ?? '', maxChars)]);
-  if (!seen.length) seen.push(['SEEN', 'no OS event attached']);
+    ? ['SEEN', clip(x, maxChars), false]
+    : [clip(String(x?.source || 'seen').toUpperCase(), 4), clip(x?.text ?? '', maxChars), x?.sampled === true]);
+  if (!seen.length) seen.push(['SEEN', 'no OS event attached', false]);
 
   const unreported = !said;
   let v = VERDICT_ALIAS[String(raw.verdict ?? '').toLowerCase()];
-  if (!v) v = unreported && z !== 'fence' ? 'breach' : z === 'vault' ? 'warn' : 'ok';
+  if (!v) v = defaultVerdict(z, target, unreported);
 
   let rule = raw.rule ? clip(raw.rule, maxChars) : undefined;
   if (!rule) {
-    if (v === 'breach') rule = unreported ? 'Unreported action outside the workspace' : 'Flagged by your rules';
+    if (unreported && UNREPORTED_RULE[z] && v !== 'ok') rule = UNREPORTED_RULE[z](target);
+    else if (v === 'breach') rule = 'Flagged by your rules';
     else if (v === 'warn') rule = z === 'vault' ? 'Reported, but outside the workspace' : 'Needs a look';
     else if (z === 'net' && !allowlist.includes(k)) rule = 'First visit to this domain';
   }
   const title = clip(raw.title ? String(raw.title) : `${VERB[z]} ${z === 'net' ? k : target}`, 90);
   const workspace = raw.workspace ? clip(String(raw.workspace), 60) : undefined;
-  return { a, title, said, seen, z, k, v, rule, ts: raw.ts, workspace };
+  const session = typeof raw.session === 'string' && raw.session ? clip(raw.session, 100) : undefined;
+  return { a, title, said, seen, z, k, v, rule, ts: raw.ts, workspace, session };
 }

@@ -1,13 +1,18 @@
 // Where events come from: replaying a .jsonl file, or a live WebSocket.
 // Both paths go through normalize(), which treats every field as untrusted.
 import { state, dispatch, resolveKey } from './world.js';
-import { normalize, parseLines } from './events.js';
+import { clip, normalize, parseLines } from './events.js';
 import { setStatus } from './ledger.js';
 import { LIMITS, ALLOWLIST } from './config.js';
 
 let replayRaw = [], ws = null, wake = () => {}, wsBtn, urlInput;
+// Live mode keeps trying to reach the collector until the user stops it,
+// so starting the collector after the page (or restarting it) just works.
+let retryTimer = 0, retryDelay = 0, wantLive = false;
+const RETRY_MIN_MS = 1000, RETRY_MAX_MS = 15000;
 const isLocalPage = location.protocol === 'file:' || ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 let lastProblem = '';
+let observerNote = '';   // from the collector's status message: which OS observer is running
 
 export function initFeed(opts) {
   wake = opts.wake; wsBtn = opts.wsBtn; urlInput = opts.urlInput;
@@ -16,6 +21,11 @@ export function initFeed(opts) {
 }
 
 function ingest(raw) {
+  // A status message from the collector, not an event: say which OS observer is running.
+  if (raw && raw.type === 'status') {
+    observerNote = clip(String(raw.detail || raw.observer || ''), 160);
+    return true;
+  }
   try {
     dispatch(normalize(raw, { resolveKey, allowlist: ALLOWLIST, maxChars: LIMITS.maxFieldChars }));
     state.accepted++;
@@ -79,23 +89,43 @@ export function onClear(fn) { clearHook = fn; }
 
 /* ---------- live ---------- */
 export function disconnect() {
+  wantLive = false;
+  clearTimeout(retryTimer); retryTimer = 0;
   if (ws) { const s0 = ws; ws = null; try { s0.close(); } catch { /* already closed */ } }
+  observerNote = '';
   wsBtn.textContent = 'Connect';
 }
 export function isConnected() { return !!ws; }
 
 function toggleSocket() {
-  if (ws) { disconnect(); setStatus('Disconnected.'); return; }
+  if (ws || retryTimer) { disconnect(); setStatus('Disconnected.'); return; }
+  connect();
+}
+
+export function connect() {
+  wantLive = true; retryDelay = 0;
+  clearTimeout(retryTimer); retryTimer = 0;
+  if (!ws) connectSocket();
+}
+
+function scheduleRetry(message) {
+  wsBtn.textContent = 'Stop';
+  retryDelay = Math.min(RETRY_MAX_MS, retryDelay ? retryDelay * 2 : RETRY_MIN_MS);
+  setStatus(`${message} Retrying in ${Math.round(retryDelay / 1000)} s.`, 'bad');
+  retryTimer = setTimeout(() => { retryTimer = 0; if (wantLive && !ws) connectSocket(); }, retryDelay);
+}
+
+function connectSocket() {
   const url = urlInput.value.trim();
-  if (!/^wss?:\/\/\S+$/.test(url)) { setStatus('Use a ws:// or wss:// address, such as ws://localhost:8765.', 'bad'); return; }
+  if (!/^wss?:\/\/\S+$/.test(url)) { wantLive = false; setStatus('Use a ws:// or wss:// address, such as ws://127.0.0.1:8765.', 'bad'); return; }
   let sock;
-  try { sock = new WebSocket(url); } catch (e) { setStatus(`Couldn't open ${url}: ${e.message}`, 'bad'); return; }
+  try { sock = new WebSocket(url); } catch (e) { wantLive = false; setStatus(`Couldn't open ${url}: ${e.message}`, 'bad'); return; }
   ws = sock; wsBtn.textContent = 'Cancel';
   setStatus(`Connecting to ${url}…`);
   let opened = false, statusTimer = 0;
   sock.onopen = () => {
     if (ws !== sock) return;
-    opened = true; wsBtn.textContent = 'Disconnect';
+    opened = true; retryDelay = 0; wsBtn.textContent = 'Disconnect';
     setStatus(`Connected to ${url}. Waiting for events.`, 'ok');
   };
   sock.onmessage = (m) => {
@@ -112,19 +142,17 @@ function toggleSocket() {
     // One status update per 250 ms at most, however fast events arrive.
     if (!statusTimer) statusTimer = setTimeout(() => {
       statusTimer = 0;
-      if (ws === sock) setStatus(`Connected to ${url}. ${countsText()}.`, state.rejected ? 'bad' : 'ok');
+      if (ws === sock) setStatus(`Connected to ${url}. ${observerNote ? `${observerNote}. ` : ''}${countsText()}.`, state.rejected ? 'bad' : 'ok');
     }, 250);
   };
-  sock.onerror = () => {
-    if (ws !== sock || opened) return;
-    setStatus(isLocalPage
-      ? `Couldn't connect to ${url}. Check your collector is running and listening there.`
-      : `Couldn't connect to ${url}. Hosted copies of this page may be blocked from reaching your Mac; run it locally with npm start.`, 'bad');
-  };
+  // A failed attempt fires error then close; both outcomes are handled in onclose.
   sock.onclose = () => {
     if (ws !== sock) return;
-    ws = null; wsBtn.textContent = 'Connect';
-    if (opened) setStatus('Connection closed by the collector.', 'bad');
+    ws = null; wsBtn.textContent = 'Connect'; observerNote = '';
+    const message = opened ? 'Connection closed by the collector.'
+      : isLocalPage ? `Couldn't connect to ${url}. Start it with npm run collector.`
+      : `Couldn't connect to ${url}. Hosted copies of this page may be blocked from reaching your Mac; run it locally with npm start.`;
+    if (wantLive) scheduleRetry(message); else setStatus(message, 'bad');
   };
 }
 

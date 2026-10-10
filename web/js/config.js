@@ -5,6 +5,7 @@ export const LIMITS = Object.freeze({
   fpsFading: 6,         // frame cap while only trails and highlights fade
   queuePerAgent: 3,     // queued trips per agent before the map fast-forwards
   maxGhosts: 4,         // unreported actions animating at once
+  maxWalkers: 6,        // characters on the map; extra sessions share their agent's first one
   maxTrails: 40,
   maxRings: 24,
   logRows: 60,          // rows kept in the activity log

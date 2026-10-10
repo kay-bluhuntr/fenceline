@@ -20,11 +20,11 @@ async function open(viewport = { width: 1280, height: 900 }) {
 }
 const debug = (page) => page.evaluate(() => window.fencelineDebug());
 
-test('demo runs without errors and fills the log', async () => {
+test('starts in live mode without generating simulated events', async () => {
   const { page, errors } = await open();
-  await page.waitForTimeout(3000);
-  assert.ok(await page.locator('#log li').count() > 0);
-  assert.ok(Number(await page.innerText('#sEvents')) > 0);
+  assert.equal(await page.textContent('#modePill'), 'Live feed');
+  assert.equal(await page.locator('#log li:not(.emptyrow)').count(), 0);
+  assert.equal(await page.innerText('#sEvents'), '0');
   assert.deepEqual(errors, []);
   await page.close();
 });
@@ -74,7 +74,7 @@ test('markup inside events is shown as text, never run', async () => {
 test('a burst of 1,000 live events stays in real time and bounded', async () => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const sockets = [];
-  await page.routeWebSocket('ws://localhost:8765', ws => sockets.push(ws));
+  await page.routeWebSocket('ws://127.0.0.1:8765', ws => sockets.push(ws));
   await page.goto(PAGE);
   await page.click('[data-mode="live"]');
   await page.click('#wsBtn');
@@ -93,6 +93,68 @@ test('a burst of 1,000 live events stays in real time and bounded', async () => 
   assert.ok(d.fastForwarded > 900, 'most of the burst should be fast-forwarded');
   assert.ok(await page.locator('#log li').count() <= 60);
   assert.match(await page.innerText('#feedStatus'), /without animation/);
+  await page.close();
+});
+
+test('live feed reconnects after the collector drops, and Stop ends retries', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const sockets = [];
+  await page.routeWebSocket('ws://127.0.0.1:8765', ws => sockets.push(ws));
+  await page.goto(PAGE);
+  await page.click('#wsBtn');
+  await page.waitForFunction(() => document.querySelector('#feedStatus').textContent.startsWith('Connected'));
+  sockets[0].close();
+  await page.waitForFunction(() => /Retrying in 1 s/.test(document.querySelector('#feedStatus').textContent));
+  assert.equal(await page.innerText('#wsBtn'), 'Stop');
+  await page.waitForFunction(() => document.querySelector('#feedStatus').textContent.startsWith('Connected'), null, { timeout: 5000 });
+  assert.equal(sockets.length, 2);
+  sockets[1].close();
+  await page.waitForFunction(() => /Retrying/.test(document.querySelector('#feedStatus').textContent));
+  await page.click('#wsBtn');
+  await page.waitForTimeout(2500);
+  assert.equal(sockets.length, 2, 'no reconnect after Stop');
+  assert.equal(await page.innerText('#feedStatus'), 'Disconnected.');
+  await page.close();
+});
+
+test('collector status and sampled observations are shown, and status is not counted as an event', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const sockets = [];
+  await page.routeWebSocket('ws://127.0.0.1:8765', ws => sockets.push(ws));
+  await page.goto(PAGE);
+  await page.click('#wsBtn');
+  await page.waitForFunction(() => document.querySelector('#feedStatus').textContent.startsWith('Connected'));
+  sockets[0].send(JSON.stringify({ type: 'status', observer: 'lite', detail: 'Lite observer: sampled' }));
+  sockets[0].send(JSON.stringify({ agent: 'claude-code', zone: 'net', target: '1.2.3.4:443', said: null,
+    seen: [{ source: 'poll', text: 'connect 1.2.3.4:443 pid 9', sampled: true }] }));
+  await page.waitForFunction(() => /Lite observer: sampled\. 1 shown/.test(document.querySelector('#feedStatus').textContent));
+  assert.equal(await page.locator('#log .pill.sampled').count(), 1);
+  assert.equal(await page.locator('#log .ln.sampled').count(), 1);
+  await page.close();
+});
+
+test('each Claude Code session gets its own named character and log label', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const sockets = [];
+  await page.routeWebSocket('ws://127.0.0.1:8765', ws => sockets.push(ws));
+  await page.goto(PAGE);
+  await page.click('#wsBtn');
+  await page.waitForFunction(() => document.querySelector('#feedStatus').textContent.startsWith('Connected'));
+  const ev = (session, workspace, target) => JSON.stringify({ agent: 'claude-code', zone: 'fence', target, said: 'Read', session, workspace });
+  sockets[0].send([
+    ev('s1', '/Users/me/code/fenceline', 'README.md'),
+    ev('s2', '/Users/me/code/payments-api', 'app.py'),
+    ev('s3', '/Users/me/other/fenceline', 'x.js'),
+    ev('s1', '/Users/me/code/fenceline', 'b.js')
+  ].join('\n'));
+  await page.waitForFunction(() => window.fencelineDebug().walkers.includes('payments-api'));
+  const { walkers } = await debug(page);
+  assert.deepEqual(walkers.filter(w => w !== 'copilot').sort(), ['fenceline', 'fenceline 2', 'payments-api']);
+  assert.equal(await page.textContent('#wsLabel'), '3 sessions: fenceline, payments-api, fenceline 2');
+  await page.locator('#log .chip', { hasText: '· payments-api' }).first().waitFor();
+  assert.equal(await page.locator('#log .chip', { hasText: '· payments-api' }).count(), 1);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: 'test-results/sessions.png' });
   await page.close();
 });
 

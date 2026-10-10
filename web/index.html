@@ -12,9 +12,9 @@
   <header class="top">
     <div class="brand">
       <span class="logo">FENCE<i>LINE</i></span>
-      <span class="sub">Watching AI agents on this Mac · workspace <span id="wsLabel">~/code/payments-api</span></span>
+      <span class="sub">Watching AI agents on this Mac · <span id="wsLabel">workspace ~/code/payments-api</span></span>
     </div>
-    <span class="simpill" id="modePill">Simulated feed</span>
+    <span class="simpill" id="modePill">Live feed</span>
   </header>
 
   <section class="hud" aria-label="Session totals">
@@ -44,24 +44,25 @@
       <div class="feed">
         <span class="lbl">Feed</span>
         <div class="seg" role="group" aria-label="Feed source">
-          <button type="button" data-mode="demo" aria-pressed="true">Demo</button>
+          <button type="button" data-mode="demo" aria-pressed="false">Demo</button>
           <button type="button" data-mode="file" aria-pressed="false">Replay file</button>
-          <button type="button" data-mode="live" aria-pressed="false">Live</button>
+          <button type="button" data-mode="live" aria-pressed="true">Live</button>
         </div>
         <div class="feedopt" id="optFile" hidden>
           <label class="filebtn">Choose a .jsonl file<input type="file" id="fileIn" accept=".jsonl,.ndjson,.json,.txt"></label>
         </div>
-        <div class="feedopt" id="optLive" hidden>
-          <input id="wsUrl" type="text" value="ws://localhost:8765" spellcheck="false" autocomplete="off" aria-label="Collector WebSocket address">
+        <div class="feedopt" id="optLive">
+          <input id="wsUrl" type="text" value="ws://127.0.0.1:8765" spellcheck="false" autocomplete="off" aria-label="Collector WebSocket address">
           <button id="wsBtn" type="button">Connect</button>
         </div>
-        <span class="status" id="feedStatus">Scripted demo events. Switch to Replay file or Live to drive the map with your own events.</span>
+        <span class="status" id="feedStatus">Connecting to the local Claude Code collector…</span>
       </div>
       <div class="legend" aria-label="Legend">
         <span><i class="sw dot k-claude"></i>Claude Code</span>
         <span><i class="sw dot k-copilot"></i>Copilot</span>
         <span><i class="sw dash k-ok"></i>Reported trip</span>
         <span><i class="sw ghosty k-ghost"></i>Ghost trail: seen, never reported</span>
+        <span><span class="pill sampled">Sampled</span> Found by periodic checks; quick actions can be missed</span>
         <span><i class="sw dot k-bad"></i>Breach</span>
       </div>
     </div>
@@ -134,7 +135,7 @@
             <tr><td><code>target</code></td><td>path, domain or tool</td><td>Required. Domains are grouped by site; new paths and tools take over the least-used plot.</td></tr>
             <tr><td><code>said</code></td><td>object, string or <code>null</code></td><td><code>{source, text}</code> from the agent. Null means unreported.</td></tr>
             <tr><td><code>seen</code></td><td>array</td><td><code>{source, text}</code> OS observations. Source shows as the line label.</td></tr>
-            <tr><td><code>verdict</code></td><td><code>ok</code>, <code>warn</code>, <code>breach</code></td><td>Optional. Otherwise: unreported outside the fence is a breach, the rest of the Mac is a warning, unlisted domains are new.</td></tr>
+            <tr><td><code>verdict</code></td><td><code>ok</code>, <code>warn</code>, <code>breach</code></td><td>Optional. Otherwise: an unreported internet connection or read of a credential file is a breach, other unreported actions are a check, unlisted domains are new.</td></tr>
             <tr><td><code>workspace</code></td><td>string</td><td>Optional. Relabels the fenced area, such as <code>~/code/payments-api</code>.</td></tr>
             <tr><td><code>title</code>, <code>rule</code>, <code>ts</code></td><td>strings</td><td>Optional. Row heading, reason shown under it, ISO time.</td></tr>
           </tbody>

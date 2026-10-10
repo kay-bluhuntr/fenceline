@@ -247,9 +247,9 @@ function tag(x, y, label, col) {
 function drawActors() {
   const list = [];
   for (const w of Object.values(state.walkers)) list.push({ y: w.y, draw: () => {
-    const col = C[AGENTS[w.id].colour];
+    const col = C[AGENTS[w.agent].colour];
     robot(w.x, w.y, col, w.phase, w.path.length > 0, false);
-    tag(w.x, w.y - 36, AGENTS[w.id].name, col);
+    tag(w.x, w.y - 36, w.label || AGENTS[w.agent].name, col);
     if (w.asleep) txt('z z', w.x + 16, w.y - 58, { f: 'pix', size: 9, col: C.muted });
   } });
   for (const gh of state.ghosts) list.push({ y: gh.y, draw: () => withA(.62 * Math.max(0, gh.fade), () => {

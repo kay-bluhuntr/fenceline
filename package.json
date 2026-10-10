@@ -4,6 +4,12 @@
   "description": "A gamified monitor that shows what AI coding agents do on your Mac, and flags anything they did without reporting it.",
   "scripts": {
     "start": "node tools/serve.mjs",
+    "collector": "node tools/collector.mjs",
+    "collector:lite": "node tools/collector.mjs --lite",
+    "stop": "pkill -INT -f '^([^ ]*/)?node [^ ]*tools/(collector|serve)[.]mjs' || true",
+    "verify-log": "node tools/verify-log.mjs",
+    "install-hooks": "node tools/install-hooks.mjs",
+    "uninstall-hooks": "node tools/install-hooks.mjs --uninstall",
     "build": "node tools/build.mjs",
     "validate": "node tools/validate-events.mjs examples/sample-events.jsonl",
     "test": "npm run test:unit && npm run build && npm run test:e2e",
@@ -21,7 +27,7 @@
     "macos",
     "visualisation"
   ],
-  "author": "Kayode Odewale",
+  "author": "Kayode",
   "license": "MIT",
   "devDependencies": {
     "ajv": "8.20.0",
@@ -33,5 +39,8 @@
   "type": "module",
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
   }
 }

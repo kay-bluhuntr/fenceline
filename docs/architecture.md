@@ -1,11 +1,15 @@
 # Architecture
 
-Fenceline is a static web page. It reads a stream of events, each pairing what an AI agent
-**said** it did with what the operating system **saw**, and draws them as characters on a map.
+Fenceline is a local browser page with an optional collector. It reads a stream of events, each
+pairing what an AI agent **said** it did with what the operating system **saw**, and draws them as
+characters on a map.
 
 ```mermaid
 flowchart LR
-  P["Event producer<br/>(not in this repo)"] -- "JSON Lines over WebSocket" --> F
+  H["Claude Code hooks"] --> COLLECTOR["Local collector<br/>Claude hooks + OS observer"]
+  E["macOS Endpoint Security<br/>exec, open, write"] --> COLLECTOR
+  L["Lite sampler<br/>ps + lsof"] --> COLLECTOR
+  COLLECTOR -- "JSON over WebSocket" --> F
   R[".jsonl file"] -- "Replay file" --> F
   D["Scripted demo"] --> W
   subgraph Page["Fenceline page (browser)"]
@@ -29,6 +33,9 @@ flowchart LR
 | `web/js/feed.js` | File replay and live WebSocket input. |
 | `web/js/demo.js` | The scripted demo session. |
 | `web/js/main.js` | Boot, controls and the frame loop that sleeps when nothing changes. |
+| `tools/collector.mjs` | Local WebSocket + hook receiver; runs an observer and correlates observed events with Claude Code tool hooks. |
+| `tools/observe-lite.mjs` | Permission-free observer: samples `ps` and `lsof` for the Claude process tree. |
+| `tools/claude-hook.mjs` | Forwards Claude Code pre/post tool events to the local collector. |
 
 ## Map model
 
@@ -44,12 +51,21 @@ recently used slot that no character is heading to.
 
 ## Verdicts
 
-If an event has no `verdict`, Fenceline decides:
+If an event has no `verdict`, Fenceline decides. A breach means the agent reached the internet, or
+touched credentials or a persistence point, without reporting it. Other unreported actions are worth
+a look but routine (build tools, test runners, background processes), so they're a check.
 
-1. Unreported (`said: null`) and outside the workspace: **breach**.
-2. Reported, but somewhere else on the machine (`vault`): **check**.
-3. A domain not on the allowlist, on its first visit: **check**.
-4. Everything else: **allowed** or **inside**.
+| Action | Reported | Unreported (`said: null`) |
+|---|---|---|
+| Inside the workspace (`fence`) | inside | inside |
+| A local tool or process (`tools`) | allowed | **check** |
+| A file elsewhere on the machine (`vault`) | **check** | **check** |
+| A sensitive file: SSH, AWS, GPG, kube, Docker, `gh`, `.netrc`, registry tokens, Keychain, LaunchAgents, browser logins | **check** | **breach** |
+| A private network address or local host name (10.x, 172.16–31.x, 192.168.x, 100.64–127.x, `.local`) | allowed | **check** |
+| An internet address or domain (`net`) | allowed, or **check** on a first visit to a domain not on the allowlist | **breach** |
+
+Only breaches raise an incident and sound the fence alarm. An unreported action always walks as a
+ghost, whatever its verdict.
 
 ## Design principles
 
@@ -57,4 +73,16 @@ If an event has no `verdict`, Fenceline decides:
 - **Treat event text as hostile.** File names, commands and hosts can be chosen by the agent being watched.
 - **Stay in real time.** When events outpace the animation, fast-forward rather than fall behind.
 - **Cost nothing when nothing happens.** No frames are drawn while the map is still.
-- **Local-first.** No servers and no third-party requests. The dev server binds to 127.0.0.1.
+- **Local-first.** No remote servers or third-party requests. The dev server and optional collector bind to 127.0.0.1.
+
+The reference collector is experimental. Its Endpoint Security observer needs root and Full Disk
+Access, its `eslogger` JSON format is not stable, and it sees no network connections. Its Lite
+observer needs no permissions and sees connections, but samples, so short-lived actions are missed.
+Correlation uses process ancestry plus the tool-hook time window. A background process whose shell
+has exited is reparented to launchd; it is still attributed to Claude through its process group, when
+that group was seen under Claude or the process started during one of Claude's tool calls. Filtered
+out: Fenceline's own hook and collector processes, `git` run directly by Claude Code for its UI,
+Claude Code's bookkeeping files under `~/.claude` and its background-task output files, and handles
+Claude already held before a session. MCP calls are drawn as one `mcp:<server>` building per server,
+and subagents as `agent:<type>`. See
+[Local Claude Code monitoring](../README.md#local-claude-code-monitoring) for setup and limitations.

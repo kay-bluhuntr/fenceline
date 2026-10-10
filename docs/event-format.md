@@ -32,14 +32,27 @@ node tools/validate-events.mjs my-events.jsonl
 | `zone` | Yes | `fence`, `net`, `tools`, `vault` | Workspace, internet, a CLI tool, or anywhere else on the machine. |
 | `target` | Yes | Path, URL, host or tool | Up to 2,048 characters. |
 | `said` | No | `null`, string, or `{source, text}` | What the agent reported. `null` or missing means unreported. |
-| `seen` | No | string, `{source, text}`, or an array of them | What the OS observed. Up to 8 are shown. |
+| `seen` | No | string, `{source, text, sampled?}`, or an array of them | What the OS observed. Up to 8 are shown. Set `sampled: true` when the observer polls and can miss short actions; the page marks it as lower confidence. |
 | `verdict` | No | `ok`, `warn`, `breach` | If missing, Fenceline decides (see [architecture](architecture.md#verdicts)). |
 | `rule` | No | string | The reason, shown under the log row. |
 | `title` | No | string | The row heading. If missing, one is generated, such as "Ran git". |
 | `ts` | No | ISO 8601 | Used for the clock and for pacing replays. |
 | `workspace` | No | string | Relabels the fenced area. |
+| `session` | No | string | Agent session ID. Each session gets its own character on the map, named after the last folder of its `workspace`, and its log rows say which project they came from. Up to 6 characters are drawn; further sessions share their agent's first one. |
 
 Unknown fields are ignored, so producers can add their own.
+
+## Status messages
+
+A live producer can also send a status message, which the page shows in the feed status line
+instead of counting it as an event:
+
+```json
+{ "type": "status", "observer": "lite", "detail": "Lite observer: sampled every 300 ms during tool calls" }
+```
+
+`observer` is a short name, such as `es`, `lite` or `none`, and `detail` is the text shown. The
+reference collector sends one when a page connects and whenever its observer changes.
 
 ## Limits
 

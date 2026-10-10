@@ -6,7 +6,7 @@
 import { LIMITS } from './config.js';
 import {
   state, hooks, setLayout, restoreSlots, resetWorld, clearWorld, dispatch, step,
-  ageHighlights, activity, targetPoint, clockStr, nowStr, debugCounts
+  ageHighlights, activity, targetPoint, clockStr, nowStr, debugCounts, workspaceHeading
 } from './world.js';
 import { initRender, resize, render, readColours, invalidate, flash } from './render.js';
 import { initLedger, setStatus, setQuiet, statsChanged } from './ledger.js';
@@ -67,7 +67,7 @@ function warmup(sec) {
 
 /* ---------- wiring ---------- */
 hooks.onBreach = flash;
-hooks.onWorkspace = (ws) => { $('#wsLabel').textContent = ws; };
+hooks.onWorkspace = () => { $('#wsLabel').textContent = workspaceHeading(); };
 
 initRender($('#map'), wrap);
 initLedger({
@@ -120,7 +120,10 @@ function setMode(m) {
   clearWorld();
   if (m === 'demo') { warmup(6); setStatus('Scripted demo events. Switch to Replay file or Live to drive the map with your own events.'); }
   else if (m === 'file') { if (feed.hasReplay()) feed.startReplay(); else setStatus('Choose a .jsonl file with one event per line. The format is described at the bottom of the page.'); }
-  else setStatus(feed.liveHint());
+  else {
+    setStatus(feed.liveHint());
+    if (location.protocol !== 'file:') feed.connect();
+  }
   wake();
 }
 
@@ -143,6 +146,6 @@ window.fencelineDebug = debugCounts;
 setLayout(resize());
 restoreSlots();
 resetWorld();
-warmup(9);
+setMode('live');
 statsChanged(state.stats);
 wake();
