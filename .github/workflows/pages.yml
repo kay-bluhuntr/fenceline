@@ -32,7 +32,7 @@ jobs:
           cp examples/sample-events.jsonl schema/event.schema.json _site/
           cp examples/replays/*.jsonl _site/replays/
           cp docs/img/og.png _site/og.png
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
