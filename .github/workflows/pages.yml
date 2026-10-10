@@ -23,12 +23,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run validate
       - run: npm run build
       - name: Assemble site
         run: |
-          mkdir -p _site
+          mkdir -p _site/replays
           cp dist/fenceline.html _site/index.html
           cp examples/sample-events.jsonl schema/event.schema.json _site/
+          cp examples/replays/*.jsonl _site/replays/
+          cp docs/img/og.png _site/og.png
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

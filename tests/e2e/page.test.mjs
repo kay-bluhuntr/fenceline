@@ -174,3 +174,103 @@ test('built file makes no network requests', async () => {
   assert.ok((await readFile('dist/fenceline.html', 'utf8')).length < 400_000, 'single file should stay under 400 KB');
   await page.close();
 });
+
+/* ---------- hosted copy (GitHub Pages and the like) ---------- */
+const HOST = 'https://fenceline.test/fenceline/';
+
+// Serves the built page and example replays as a hosted site would, and records every request.
+async function openHosted(path = '', { viewport = { width: 1280, height: 900 }, permissions = [] } = {}) {
+  const context = await browser.newContext({ viewport, permissions });
+  const page = await context.newPage();
+  const requests = [], sockets = [], errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  page.on('request', r => requests.push(r.url()));
+  page.on('websocket', ws => sockets.push(ws.url()));
+  const html = await readFile('dist/fenceline.html', 'utf8');
+  await context.route('**/*', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin !== new URL(HOST).origin) return route.abort();
+    if (url.pathname === '/fenceline/') return route.fulfill({ body: html, contentType: 'text/html' });
+    if (url.pathname.startsWith('/fenceline/replays/')) {
+      try { return route.fulfill({ body: await readFile('examples' + url.pathname.slice('/fenceline'.length)), contentType: 'application/x-ndjson' }); }
+      catch { return route.fulfill({ status: 404, body: 'not found' }); }
+    }
+    return route.fulfill({ status: 404, body: 'not found' });
+  });
+  await page.goto(HOST + path);
+  await page.waitForTimeout(800);
+  return { page, context, requests, sockets, errors };
+}
+
+test('a hosted copy opens the demo, explains itself and never dials the visitor’s Mac', async () => {
+  const { page, context, sockets, errors } = await openHosted();
+  assert.equal(await page.textContent('#modePill'), 'Simulated feed');
+  assert.equal(await page.isVisible('#hosted'), true);
+  assert.equal(await page.getAttribute('#hostedRepo', 'href'), 'https://github.com/kay-bluhuntr/fenceline');
+  assert.equal(await page.textContent('#brandSub'), 'Simulated session');
+  await page.waitForFunction(() => Number(document.querySelector('#sEvents').textContent) > 0);
+  assert.deepEqual(sockets, []);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('a local copy hides the hosted banner and share button', async () => {
+  const { page } = await open();
+  assert.equal(await page.isVisible('#hosted'), false);
+  assert.equal(await page.isVisible('#share'), false);
+  await page.close();
+});
+
+test('?feed=live on a hosted copy still lets a visitor connect their own collector', async () => {
+  const { page, context } = await openHosted('?feed=live');
+  assert.equal(await page.textContent('#modePill'), 'Live feed');
+  await context.close();
+});
+
+test('a replay link plays the poisoned-package story with three breaches', async () => {
+  const { page, context, errors } = await openHosted('?replay=replays/poisoned-package.jsonl');
+  assert.equal(await page.textContent('#modePill'), 'Replaying file');
+  await page.click('[data-speed="4"]');
+  await page.waitForFunction(() => document.querySelector('#feedStatus').textContent.startsWith('Replay finished'), null, { timeout: 30000 });
+  assert.match(await page.innerText('#feedStatus'), /10 shown/);
+  await page.waitForTimeout(4000);
+  assert.equal(await page.innerText('#sBreach'), '3');
+  assert.equal(await page.innerText('#sGhost'), '3');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('replay links refuse files from another site, without fetching them', async () => {
+  const { page, context, requests } = await openHosted('?replay=' + encodeURIComponent('https://evil.test/fake-breach.jsonl'));
+  assert.match(await page.innerText('#feedStatus'), /only open \.jsonl files from this site/);
+  assert.equal(requests.some(u => new URL(u).hostname === 'evil.test'), false);
+  assert.equal(await page.innerText('#sEvents'), '0');
+  await context.close();
+});
+
+test('a missing replay says so', async () => {
+  const { page, context } = await openHosted('?replay=replays/nope.jsonl');
+  await page.waitForFunction(() => /Couldn't load/.test(document.querySelector('#feedStatus').textContent));
+  assert.match(await page.innerText('#feedStatus'), /answered 404/);
+  await context.close();
+});
+
+test('Copy link shares the replay that is on screen', async () => {
+  const { page, context } = await openHosted('?replay=replays/poisoned-package.jsonl', { permissions: ['clipboard-read', 'clipboard-write'] });
+  await page.waitForFunction(() => document.querySelector('#feedStatus').textContent.startsWith('Replaying'));
+  await page.click('#share');
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), HOST + '?replay=replays%2Fpoisoned-package.jsonl');
+  await page.click('[data-mode="live"]');
+  assert.equal(await page.isVisible('#share'), false, 'live sessions only exist on the visitor’s Mac');
+  await page.click('[data-mode="demo"]');
+  await page.click('#share');
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), HOST + '?feed=demo');
+  await context.close();
+});
+
+test('hosted page at phone width has no horizontal scroll', async () => {
+  const { page, context } = await openHosted('', { viewport: { width: 390, height: 844 } });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+  await page.screenshot({ path: 'test-results/hosted-phone.png', fullPage: false });
+  await context.close();
+});

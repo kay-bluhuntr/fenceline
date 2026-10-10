@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Fenceline: a gamified monitor that shows what AI coding agents do on your Mac, and flags anything they did without reporting it.">
 <title>Fenceline Agent Monitor</title>
+<meta property="og:type" content="website">
+<meta property="og:title" content="Fenceline: catch what your AI coding agent didn't tell you">
+<meta property="og:description" content="Watch Claude Code and Copilot walk out of the workspace. When the OS sees something the agent never reported, a ghost cracks the fence.">
+<meta property="og:image" content="https://kay-bluhuntr.github.io/fenceline/og.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="css/fenceline.css">
 </head>
 <body>
@@ -12,10 +17,15 @@
   <header class="top">
     <div class="brand">
       <span class="logo">FENCE<i>LINE</i></span>
-      <span class="sub">Watching AI agents on this Mac · <span id="wsLabel">workspace ~/code/payments-api</span></span>
+      <span class="sub"><span id="brandSub">Watching AI agents on this Mac</span> · <span id="wsLabel">workspace ~/code/payments-api</span></span>
     </div>
     <span class="simpill" id="modePill">Live feed</span>
   </header>
+
+  <p class="hosted" id="hosted" hidden>
+    You're watching a simulated session. Fenceline runs on your own Mac, where it pairs what Claude Code
+    reports with what macOS sees it do. <a id="hostedRepo" href="#">Get it on GitHub</a>
+  </p>
 
   <section class="hud" aria-label="Session totals">
     <div class="stat"><span>Events</span><b id="sEvents">0</b></div>
@@ -40,6 +50,7 @@
         <span class="spacer"></span>
         <button id="inject" class="danger" type="button">Simulate a breach</button>
         <button id="reset" type="button">Reset</button>
+        <button id="share" type="button" hidden>Copy link</button>
       </div>
       <div class="feed">
         <span class="lbl">Feed</span>
@@ -50,6 +61,7 @@
         </div>
         <div class="feedopt" id="optFile" hidden>
           <label class="filebtn">Choose a .jsonl file<input type="file" id="fileIn" accept=".jsonl,.ndjson,.json,.txt"></label>
+          <a class="filebtn" id="sampleReplay" href="?replay=replays/poisoned-package.jsonl" hidden>Try: a poisoned npm package</a>
         </div>
         <div class="feedopt" id="optLive">
           <input id="wsUrl" type="text" value="ws://127.0.0.1:8765" spellcheck="false" autocomplete="off" aria-label="Collector WebSocket address">

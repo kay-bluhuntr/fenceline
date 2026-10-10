@@ -7,7 +7,12 @@ character inside a fenced workspace. When it reaches a website, runs a tool or t
 folder, you watch it walk there. When the operating system sees something the agent never reported,
 a ghost walks the route instead, cracks the fence, and raises an incident.
 
-![Fenceline replaying a session with two breaches](docs/img/fenceline.png)
+**[Try it in your browser](https://kay-bluhuntr.github.io/fenceline/)** · or watch
+[a poisoned npm package steal credentials while Claude Code reports "all tests pass"](https://kay-bluhuntr.github.io/fenceline/?replay=replays/poisoned-package.jsonl).
+Nothing to install; the hosted page plays simulated sessions. To watch your own agents, run it on
+your Mac (below).
+
+![Fenceline replaying a poisoned npm package: three unreported actions become breaches](docs/img/fenceline-demo.gif)
 
 ## Why
 
@@ -188,7 +193,12 @@ picker, press ⇧⌘G and type `~/Library/Logs/Fenceline`).
 |---|---|
 | **Demo** | A scripted session with three breaches. Try **Simulate a breach**. |
 | **Replay file** | Load a `.jsonl` file, such as [`examples/sample-events.jsonl`](examples/sample-events.jsonl). |
+| **Replay link** | `?replay=replays/<name>.jsonl` plays a file published with the site, so a session can be shared as a link. Only files from the same site load. |
 | **Live** | Default feed. Connects to the local Claude collector or any producer that streams [the event format](docs/event-format.md) over a WebSocket. |
+
+Run locally, Fenceline opens in **Live**. A hosted copy, such as GitHub Pages, opens in **Demo**
+instead, shows a banner pointing to this repository, and has a **Copy link** button for the demo or
+a linked replay. `?feed=demo`, `?feed=replay` or `?feed=live` picks the starting feed anywhere.
 
 For a single file you can open straight from disk, or share:
 
@@ -211,13 +221,14 @@ npm run build          # dist/fenceline.html, about 200 KB with assets inlined
 | `npm run validate` | Check example events against the schema |
 | `npm run bench` | Front-end performance benchmark |
 | `npm run generate -- --count 5000 --rate 200` | Synthetic events for load tests |
+| `npm run media` | Re-record `docs/img/fenceline-demo.gif` and the `og.png` link preview |
 
 ## Repository layout
 
 ```
 web/            the app (HTML, CSS, ES modules, self-hosted fonts)
 schema/         JSON Schema for events
-examples/       sample event files
+examples/       sample event files; replays/ is published with the site for replay links
 tools/          collector, build, dev server, validator, generator, benchmark
 tests/          unit tests (Node) and browser tests (Playwright)
 bench/          benchmark baseline and results
