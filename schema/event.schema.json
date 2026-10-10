@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kay-bluhuntr/fenceline/schema/event.schema.json",
+  "title": "Fenceline event",
+  "description": "One observed action by an AI agent, with what the agent reported (said) and what the OS observed (seen). One JSON object per line.",
+  "type": "object",
+  "required": ["agent", "zone", "target"],
+  "properties": {
+    "ts": { "type": "string", "format": "date-time", "description": "When it happened, ISO 8601 with offset." },
+    "agent": {
+      "type": "string",
+      "enum": ["claude-code", "copilot", "claude", "claude_code", "github-copilot", "gh-copilot"],
+      "description": "Which agent. Canonical values are claude-code and copilot."
+    },
+    "zone": {
+      "type": "string",
+      "enum": ["fence", "net", "tools", "vault", "workspace", "network", "internet", "web", "tool", "exec", "host", "mac", "outside"],
+      "description": "fence = inside the workspace, net = network, tools = a CLI tool, vault = anywhere else on the machine."
+    },
+    "target": { "type": "string", "minLength": 1, "maxLength": 2048, "description": "Path, URL, host or tool name." },
+    "title": { "type": "string", "maxLength": 200 },
+    "said": {
+      "description": "What the agent reported. null (or omitted) means the agent did not report it.",
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "maxLength": 4000 },
+        { "$ref": "#/$defs/observation" }
+      ]
+    },
+    "seen": {
+      "description": "What the OS observed. One or more observations.",
+      "oneOf": [
+        { "type": "string", "maxLength": 4000 },
+        { "$ref": "#/$defs/observation" },
+        { "type": "array", "maxItems": 50, "items": { "oneOf": [{ "type": "string", "maxLength": 4000 }, { "$ref": "#/$defs/observation" }] } }
+      ]
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["ok", "warn", "breach", "allow", "allowed", "warning", "check", "block", "blocked", "alert"],
+      "description": "Optional. If omitted, Fenceline decides: unreported outside the workspace is a breach; elsewhere on the machine is a warning."
+    },
+    "rule": { "type": "string", "maxLength": 400, "description": "Why the verdict was given, shown under the row." },
+    "workspace": { "type": "string", "maxLength": 200, "description": "Label for the fenced workspace, e.g. ~/code/payments-api." }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "observation": {
+      "type": "object",
+      "required": ["text"],
+      "properties": {
+        "source": { "type": "string", "maxLength": 32, "description": "Short label such as hook, otel, es or net." },
+        "text": { "type": "string", "maxLength": 4000 }
+      },
+      "additionalProperties": true
+    }
+  }
+}

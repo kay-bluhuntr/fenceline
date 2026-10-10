@@ -1,0 +1,52 @@
+{
+  "demo_running": {
+    "redraws_per_s": 30,
+    "callback_ms_mean": 0.35,
+    "callback_ms_p95": 0.9,
+    "main_thread_busy_pct": 11.2,
+    "heap_mb": 2.5,
+    "dom_nodes": 722
+  },
+  "demo_paused": {
+    "redraws_per_s": 0,
+    "callback_ms_mean": 0,
+    "callback_ms_p95": 0,
+    "main_thread_busy_pct": 0,
+    "heap_mb": 2.7,
+    "dom_nodes": 725
+  },
+  "live_burst_200eps": {
+    "redraws_per_s": 29.1,
+    "callback_ms_mean": 0.94,
+    "callback_ms_p95": 2.5,
+    "main_thread_busy_pct": 47.8,
+    "heap_mb": 2.7,
+    "dom_nodes": 2499,
+    "events_sent": 1540
+  },
+  "after_burst": {
+    "redraws_per_s": 29.7,
+    "callback_ms_mean": 0.52,
+    "callback_ms_p95": 1.4,
+    "main_thread_busy_pct": 15.5,
+    "heap_mb": 2.7,
+    "dom_nodes": 2251
+  },
+  "live_quiet": {
+    "redraws_per_s": 0.3,
+    "callback_ms_mean": 0.1,
+    "callback_ms_p95": 0.7,
+    "main_thread_busy_pct": 0.5,
+    "heap_mb": 2.7,
+    "dom_nodes": 2005
+  },
+  "backlog": {
+    "walkerQueue": 0,
+    "ghosts": 0,
+    "trails": 0,
+    "rings": 0,
+    "fastForwarded": 1519,
+    "renders": 1619
+  },
+  "errors": []
+}
