@@ -13,7 +13,7 @@ import { homedir } from 'node:os';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { listProcesses, processTree, run, startLiteObserver } from './observe-lite.mjs';
+import { listProcesses, processTree, programOf, run, startLiteObserver } from './observe-lite.mjs';
 import { DEFAULT_LOG_DIR, openEventLog } from './event-log.mjs';
 
 const WS_PORT = Number(process.env.FENCELINE_WS_PORT || 8765);
@@ -33,6 +33,12 @@ const claudeRoots = new Map();    // Claude PID -> { workspace, since }
 const processRoots = new Map();   // any PID in a Claude tree -> Claude PID (es observer)
 const hookPids = new Set();       // Fenceline's own hook processes, never reported
 const groups = new Map();         // process group -> Claude PID, for the es observer
+// Each Bash tool call runs in its own shell, which leads a process group. Matching that shell to
+// the call (by the command in its arguments) attributes every process in the group to the call,
+// even when calls run in parallel. Background calls keep their group after the call returns.
+const backgroundTasks = new Map(); // tool key -> the pending entry of a run_in_background Bash call
+const finishedGroups = new Map();  // process group -> when its foreground Bash call ended
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'fish', 'ksh']);
 const toolWindows = [];           // { rootPid, start, end } of recent tool calls
 const WINDOW_SLACK_MS = 1500;     // ps start times are whole seconds
 // Tools with no effect outside Claude Code: not drawn, but they still identify the Claude process.
@@ -197,7 +203,8 @@ function observation(raw) {
   if (kind === 'exec' && ppid === rootPid && basename(target) === 'git') { hookPids.add(pid); return null; }
   processRoots.set(pid, rootPid);
   if (kind !== 'exec' && isIgnoredPath(target)) return null;
-  return { source: 'es', kind, target, pid, rootPid, isRoot: pid === rootPid, text: `${kind} ${target} pid ${pid}`.slice(0, 4000) };
+  const pgid = Number(raw?.process?.group_id) || 0;
+  return { source: 'es', kind, target, pid, pgid, orphan: ppid === 1, rootPid, isRoot: pid === rootPid, text: `${kind} ${target} pid ${pid}`.slice(0, 4000) };
 }
 
 function emitObserved(raw) {
@@ -215,18 +222,100 @@ async function refreshProcessRoots() {
   processRoots.clear();
   const tree = processTree(rows, new Set(claudeRoots.keys()), { groups, rootForOrphan });
   for (const [pid, rootPid] of tree) processRoots.set(pid, rootPid);
+  matchToolShells(rows);
+}
+
+/* ---------- matching Bash calls to their shells ---------- */
+
+/** Text a Bash command leaves in its shell's arguments: Claude Code runs it as eval '<command>'. */
+function commandNeedle(command) {
+  const first = String(command || '').split('\n')[0].trim().slice(0, 60);
+  return first.length >= 3 ? first.replaceAll("'", "'\\''") : '';
+}
+
+/** Give each waiting Bash call the process group of its shell, and forget groups that have ended. */
+function matchToolShells(rows) {
+  const tasks = [...new Set([...active.values(), ...backgroundTasks.values()])];
+  const claimed = new Set(tasks.map((t) => t.pgid).filter(Boolean));
+  for (const task of tasks) {
+    if (!task.needle || task.pgid) continue;
+    const shell = rows.find((row) => row.pgid === row.pid && row.ppid === task.claudePid && !claimed.has(row.pgid) &&
+      SHELLS.has(programOf(row.args)) && row.args.includes(task.needle) && row.started >= task.window.start - 2000);
+    if (shell) { task.pgid = shell.pgid; claimed.add(shell.pgid); }
+  }
+  const livePgids = new Set(rows.map((row) => row.pgid));
+  for (const [key, task] of backgroundTasks) {
+    const gone = task.pgid ? !livePgids.has(task.pgid) : Date.now() - task.window.start > 60_000;
+    if (gone && !active.has(key)) backgroundTasks.delete(key);
+  }
+  for (const pgid of finishedGroups.keys()) if (!livePgids.has(pgid)) finishedGroups.delete(pgid);
 }
 
 /* ---------- correlation ---------- */
+
+/** The open tool call an observation most likely belongs to, when its process group doesn't say. */
+function pickPending(rootPid, kind, isRoot) {
+  const mine = [...active.values()].filter((entry) => entry.claudePid === rootPid).reverse();
+  if (!mine.length) return null;
+  if (isRoot) {
+    // Claude's own process does WebFetch, WebSearch and remote MCP work.
+    const inProcess = mine.filter((entry) => !entry.needle);
+    if (kind === 'connect') return inProcess.find((entry) => entry.zone === 'net') || inProcess[0] || mine[0];
+    return inProcess[0] || mine[0];
+  }
+  // A child process with no matched group: most likely from a Bash call whose shell wasn't sampled.
+  return mine.find((entry) => entry.needle && !entry.pgid) || mine[0];
+}
+
+/** Map an observation to the zone and target the page draws. */
+function placeOf({ kind, target }, workspace) {
+  if (kind === 'exec') return { zone: 'tools', shown: basename(target) };
+  if (kind === 'connect') return { zone: 'net', shown: target };
+  const full = isAbsolute(target) ? resolve(target) : target;
+  const inside = workspace && (full === workspace || full.startsWith(`${workspace}/`));
+  return { zone: inside ? 'fence' : 'vault', shown: target };
+}
 
 /**
  * One observed action from either observer. While a tool is running it's attached
  * to that tool's report; otherwise it's sent as an unreported event.
  */
-function report({ source, kind, target, pid, rootPid, isRoot, text }) {
+function report({ source, kind, target, pid, pgid, orphan, rootPid, isRoot, text }) {
   // Lite samples, so it can miss short actions; the page shows its observations as lower confidence.
   const seen = source === 'poll' ? { source, text, sampled: true } : { source, text };
-  const pending = [...active.values()].reverse().find((entry) => entry.claudePid === rootPid);
+  const values = [...active.values()];
+  // 1. Its process group belongs to a running Bash call.
+  const owner = pgid ? values.find((entry) => entry.pgid === pgid) : null;
+  // The matched shell itself is the tool call; reporting it again is noise.
+  const isShell = kind === 'exec' && pgid && pid === pgid;
+  if (owner) {
+    if (isShell) return;
+    if (owner.seen.length < 8) owner.seen.push(seen);
+    return;
+  }
+  // 2. Its group belongs to a background Bash call that has returned: reported, so not a ghost.
+  const task = pgid ? [...backgroundTasks.values()].find((entry) => entry.pgid === pgid) : null;
+  if (task) {
+    if (isShell) return;
+    const { zone, shown } = placeOf({ kind, target }, task.cwd);
+    sendEvent({
+      ts: now(),
+      agent: 'claude-code',
+      title: `Background: ${basename(target)} (from ${task.title})`.slice(0, 200),
+      zone,
+      target: shown.slice(0, 2048),
+      said: { source: 'hook', text: `Background task of ${task.said.text}`.slice(0, 4000) },
+      seen: [seen],
+      workspace: task.cwd,
+      session: task.sessionId
+    });
+    return;
+  }
+  // 3. Otherwise the best open call, unless the process outlived its shell (reparented to
+  //    launchd) or its group's foreground call has ended: a process left running by `cmd &`
+  //    can't belong to a call that is still open, so it's unreported.
+  const leftBehind = orphan || (pgid && finishedGroups.has(pgid));
+  const pending = leftBehind ? null : pickPending(rootPid, kind, isRoot);
   if (pending) {
     if (pending.seen.length < 8) pending.seen.push(seen);
     return;
@@ -236,14 +325,7 @@ function report({ source, kind, target, pid, rootPid, isRoot, text }) {
   if (source === 'poll' && isRoot) return;
   const workspace = claudeRoots.get(rootPid)?.workspace || '';
   const session = claudeRoots.get(rootPid)?.sessionId;
-  let zone, shown;
-  if (kind === 'exec') { zone = 'tools'; shown = basename(target); }
-  else if (kind === 'connect') { zone = 'net'; shown = target; }
-  else {
-    const full = isAbsolute(target) ? resolve(target) : target;
-    zone = workspace && (full === workspace || full.startsWith(`${workspace}/`)) ? 'fence' : 'vault';
-    shown = target;
-  }
+  const { zone, shown } = placeOf({ kind, target }, workspace);
   sendEvent({
     ts: now(),
     agent: 'claude-code',
@@ -377,7 +459,12 @@ function handleHook(event) {
     const window = { rootPid: claudePid, start: Date.now(), end: null };
     toolWindows.push(window);
     if (toolWindows.length > 200) toolWindows.shift();
-    active.set(key, { ...tool, claudePid, sessionId, seen: [], window });
+    const entry = { ...tool, key, claudePid, sessionId, seen: [], window, pgid: 0 };
+    if (String(event.tool_name) === 'Bash') {
+      entry.needle = commandNeedle(event.tool_input?.command);
+      if (event.tool_input?.run_in_background === true) backgroundTasks.set(key, entry);
+    }
+    active.set(key, entry);
     lite?.wake();
     return;
   }
@@ -387,12 +474,15 @@ function handleHook(event) {
   if (!pending) return;
   active.delete(key);
   pending.window.end = lastToolEnd = Date.now();
+  const background = backgroundTasks.has(key);
+  if (pending.pgid && !background) finishedGroups.set(pending.pgid, Date.now());
+  const title = background ? `${pending.title} (background)` : pending.title;
   sendEvent({
     ts: now(),
     agent: 'claude-code',
     zone: pending.zone,
     target: pending.target,
-    title: name === 'PostToolUseFailure' ? `Failed: ${pending.title}`.slice(0, 200) : pending.title,
+    title: (name === 'PostToolUseFailure' ? `Failed: ${title}` : title).slice(0, 200),
     said: pending.said,
     seen: pending.seen,
     workspace: pending.cwd,
@@ -421,7 +511,7 @@ function startLite(reason) {
     `during tool calls and every ${IDLE_POLL_MS} ms between them, so shorter actions can be missed.`);
   lite = startLiteObserver({
     roots: liteRoots, isIgnoredPath, onObservation: report, rootForOrphan,
-    intervalMs: POLL_MS, idleIntervalMs: IDLE_POLL_MS,
+    intervalMs: POLL_MS, idleIntervalMs: IDLE_POLL_MS, onSample: matchToolShells,
     isBusy: () => active.size > 0 || Date.now() - lastToolEnd < BUSY_TAIL_MS
   });
   setObserver('lite', `Lite observer: sampled every ${POLL_MS} ms during tool calls, so short actions can be missed`);
@@ -533,7 +623,7 @@ function start() {
 
 export {
   emitObserved, eventKind, eventTarget, expirePending, handleHook, isIgnoredPath, observation, ownsConnection,
-  checkNewRoot, looksLikeClaude, parseParent, parseTool, processDetails, report, setTestSink, verifyHook
+  checkNewRoot, commandNeedle, looksLikeClaude, matchToolShells, parseParent, parseTool, processDetails, report, setTestSink, verifyHook
 };
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) start();

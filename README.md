@@ -126,11 +126,18 @@ Tools with no effect outside Claude Code, such as ToolSearch and TodoWrite, aren
 
 ### How observations are matched
 
-The collector keeps event data in memory and doesn't write a monitoring log. Matching is
-best-effort: an observation belongs to Claude when it comes from Claude's process tree, and it's
-attached to the tool call that was running at the time. A background process whose shell has exited
-(for example `nohup … &`) is still attributed through its process group. These are filtered out, so
-they don't show as unreported:
+Matching is best-effort. An observation belongs to Claude when it comes from Claude's process tree.
+Each Bash call runs in its own shell, which the collector matches to the call by its command, so
+everything in that shell's process group is attached to the right call, even when Claude runs
+several at once. Claude's own connections (WebFetch, WebSearch, remote MCP) go to the open web call.
+
+| Process | Shown as |
+|---|---|
+| Started by a Bash call, while the call runs | Part of that call's report |
+| From a Bash call Claude ran **in the background** (`run_in_background`), after the call returns | Reported, as "Background: … (from Bash: …)", with a verdict for what it touched |
+| Left running by `cmd &` or `nohup` inside an ordinary Bash call, after the call returns | **Unreported**: detaching like this is a common way to slip past a monitor |
+
+These are filtered out, so they don't show as unreported:
 
 - Fenceline's own hook and collector processes
 - `git`, which Claude Code runs for its own interface

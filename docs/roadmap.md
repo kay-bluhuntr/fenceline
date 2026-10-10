@@ -16,6 +16,7 @@
 - Breaches only for unreported internet access or sensitive files.
 - A private, tamper-evident daily event log.
 - Every Claude Code session on the Mac, each as its own character, with a hook installer.
+- Observations attributed by process group: parallel calls and background tasks.
 
 ## v0.3: making it useful day to day
 
@@ -29,7 +30,6 @@
 ## v0.4: more sources
 
 - Confirm reported web visits against observed connections, so the map shows "confirmed by OS" rather than an IP address.
-- Attribute observations to the right tool call when Claude runs several at once.
 - Test the Endpoint Security parser against recorded `eslogger` output, and run the collector end to end in the test suite.
 - AgentBox sessions as a source, so Kubernetes sandboxes show up as fenced workspaces.
 - More agent characters beyond Claude Code and Copilot.

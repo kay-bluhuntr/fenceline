@@ -6,6 +6,8 @@
 - Each Claude Code session gets its own character, named after its project, and log rows say which project they came from. Events carry a `session` field.
 - `npm run install-hooks` adds the hooks for every Claude Code session on the Mac (or one project with `--project`), keeping other settings; `npm run uninstall-hooks` removes them.
 - The collector keeps a private daily log in `~/Library/Logs/Fenceline/` (30 days, `--no-log` to turn off) that Replay file can open, with a hash chain that `npm run verify-log` checks.
+- Observations are attributed by process group: parallel Bash calls each get their own processes, and Claude's own connections go to the open web call rather than whichever call started last.
+- Processes from a `run_in_background` Bash call are reported as "Background" activity of that call instead of unreported ghosts; a process left running by `cmd &` inside an ordinary call is still unreported.
 - Fenceline opens in Live mode and connects to the local collector, instead of running the demo. Demo and Replay file are still in the feed selector.
 - The Live feed reconnects by itself, backing off from 1 s to 15 s, so the collector can start before or after the page. **Stop** ends the retries.
 - Added a local Claude Code collector (`npm run collector`). It pairs Claude Code tool hooks with what macOS observed and flags actions that no tool call reported.

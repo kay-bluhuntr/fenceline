@@ -27,7 +27,7 @@ export function isTransient(row) {
   return row.args.startsWith('(');
 }
 
-function programOf(args) {
+export function programOf(args) {
   return args.split(/\s+/)[0].split('/').pop();
 }
 
@@ -118,20 +118,21 @@ export function run(file, args) {
 }
 
 export function listProcesses() {
-  return run('/bin/ps', ['-Ao', 'pid=,ppid=,pgid=,lstart=,args=']).then(parsePs);
+  return run('/bin/ps', ['-Aww', '-o', 'pid=,ppid=,pgid=,lstart=,args=']).then(parsePs);
 }
 
 /**
- * Start sampling. Calls onObservation({ source, kind, pid, rootPid, isRoot, target, text })
+ * Start sampling. Calls onObservation({ source, kind, pid, pgid, orphan, rootPid, isRoot, target, text })
  * once per new process, open file or connection in a watched tree.
  * @param opts.roots         Map of Claude root PID -> time it was first seen (ms)
  * @param opts.isIgnoredPath (path) -> true for files not worth reporting
  * @param opts.rootForOrphan see processTree
  * @param opts.isBusy        () -> true while sampling should run at intervalMs; otherwise idleIntervalMs
+ * @param opts.onSample      (rows) -> called with each process sample, before its observations
  * @returns {{ stop(): void, wake(): void }} wake() samples now and restarts the cadence
  */
 export function startLiteObserver({ roots, isIgnoredPath, onObservation, rootForOrphan,
-  intervalMs = 300, idleIntervalMs = 2000, isBusy = () => true }) {
+  intervalMs = 300, idleIntervalMs = 2000, isBusy = () => true, onSample = () => {} }) {
   const groups = new Map();
   const known = new Set();      // `${pid}@${started}` already reported as exec
   const seenFds = new Set();    // `${pid}@${started}|kind|target` already reported
@@ -145,6 +146,7 @@ export function startLiteObserver({ roots, isIgnoredPath, onObservation, rootFor
     running = true;
     try {
       const rows = await listProcesses();
+      onSample(rows);
       const rootPids = new Set(roots.keys());
       const livePgids = new Set(rows.map((r) => r.pgid));
       for (const [pgid, root] of groups) if (!rootPids.has(root) || !livePgids.has(pgid)) groups.delete(pgid);
@@ -159,7 +161,7 @@ export function startLiteObserver({ roots, isIgnoredPath, onObservation, rootFor
         known.add(id);
         // Long-running helpers that predate this session (MCP servers and so on) aren't new actions.
         if (row.started && row.started < roots.get(rootPid) - 1000) continue;
-        onObservation({ source: 'poll', kind: 'exec', pid, rootPid, isRoot: false,
+        onObservation({ source: 'poll', kind: 'exec', pid, pgid: row.pgid, orphan: row.ppid === 1, rootPid, isRoot: false,
           target: row.args.split(/\s+/)[0], text: `exec ${row.args} pid ${pid}` });
       }
       for (const id of known) if (!alive.has(id)) known.delete(id);
@@ -178,7 +180,7 @@ export function startLiteObserver({ roots, isIgnoredPath, onObservation, rootFor
           const preexisting = obs.pid === rootPid || (row?.started && row.started < roots.get(rootPid) - 1000);
           if (preexisting && !baselined.has(id)) continue;
           const verb = obs.kind === 'open' ? 'open' : 'connect';
-          onObservation({ source: 'poll', ...obs, rootPid, isRoot: obs.pid === rootPid,
+          onObservation({ source: 'poll', ...obs, pgid: row?.pgid, orphan: row?.ppid === 1, rootPid, isRoot: obs.pid === rootPid,
             text: `${verb} ${obs.target} pid ${obs.pid}` });
         }
         for (const pid of tree.keys()) baselined.add(`${pid}@${byPid.get(pid).started}`);

@@ -141,3 +141,88 @@ test('only a top-level Claude Code process is accepted as Claude', async () => {
   assert.match(checkNewRoot(rows, 2001), /runs inside Claude Code process 1167/);
   assert.match(checkNewRoot(rows, 9999), /isn't Claude Code/);
 });
+
+/* ---------- process groups: parallel and background Bash calls ---------- */
+
+const shellRow = (pid, command, started = Date.now()) => ({
+  pid, ppid: 8000, pgid: pid, started,
+  args: `/bin/zsh -c source /x/snapshot.sh && eval '${command.replaceAll("'", "'\\''")}' < /dev/null`
+});
+const bash = (id, command, extra = {}) => ({ session_id: 'pg', claude_pid: 8000, cwd: '/p', tool_use_id: id,
+  hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command, ...extra } });
+const post = (id) => ({ session_id: 'pg', claude_pid: 8000, cwd: '/p', tool_use_id: id, hook_event_name: 'PostToolUse', tool_name: 'Bash' });
+const obs = (pgid, target, kind = 'connect') => ({ source: 'poll', kind, target, pid: pgid + 1, pgid, rootPid: 8000, isRoot: false, text: `${kind} ${target}` });
+
+test('the command needle matches how Claude Code quotes it for its shell', async () => {
+  const { commandNeedle } = await import('../../tools/collector.mjs');
+  assert.equal(commandNeedle("echo 'hi' && ls"), "echo '\\''hi'\\'' && ls");
+  assert.ok(shellRow(1, "echo 'hi' && ls").args.includes(commandNeedle("echo 'hi' && ls")));
+  assert.equal(commandNeedle('ls'), '', 'too short to match safely');
+});
+
+test('parallel Bash calls each get their own processes', async () => {
+  const { handleHook, matchToolShells, report, setTestSink } = await import('../../tools/collector.mjs');
+  const sent = []; setTestSink((e) => sent.push(e));
+  try {
+    handleHook(bash('a', 'curl https://one.example'));
+    handleHook(bash('b', 'npm test --silent'));
+    matchToolShells([shellRow(8101, 'curl https://one.example'), shellRow(8102, 'npm test --silent')]);
+    report(obs(8101, '1.1.1.1:443'));       // from call a, although b is the most recent
+    report(obs(8102, '/usr/bin/node', 'exec'));
+    handleHook(post('a')); handleHook(post('b'));
+    assert.deepEqual(sent.map((e) => [e.target, e.seen.map((s) => s.text)]), [
+      ['curl https://one.example', ['connect 1.1.1.1:443']],
+      ['npm test --silent', ['exec /usr/bin/node']]
+    ]);
+  } finally { setTestSink(null); }
+});
+
+test('a background Bash call keeps its processes after it returns; `cmd &` in a foreground call does not', async () => {
+  const { handleHook, matchToolShells, report, setTestSink } = await import('../../tools/collector.mjs');
+  const sent = []; setTestSink((e) => sent.push(e));
+  try {
+    handleHook(bash('bg', 'npm install left-pad', { run_in_background: true }));
+    matchToolShells([shellRow(8201, 'npm install left-pad')]);
+    handleHook(post('bg'));
+    assert.equal(sent[0].title, 'Bash: npm install left-pad (background)');
+    report(obs(8201, '104.16.0.35:443'));
+    assert.equal(sent[1].title, 'Background: 104.16.0.35:443 (from Bash: npm install left-pad)');
+    assert.equal(sent[1].zone, 'net');
+    assert.match(sent[1].said.text, /^Background task of Bash: npm install left-pad/);
+
+    handleHook(bash('fg', 'nohup ./sync.sh &'));
+    matchToolShells([shellRow(8201, 'npm install left-pad'), shellRow(8301, 'nohup ./sync.sh &')]);
+    handleHook(post('fg'));
+    handleHook(bash('other', 'git status --short'));   // a later call must not absorb it
+    report(obs(8301, '203.0.113.9:443'));
+    const left = sent.at(-1);
+    assert.equal(left.said, null);
+    assert.equal(left.target, '203.0.113.9:443');
+    handleHook(post('other'));
+
+    // Its launch, sampled after its shell exited while another call is open, isn't absorbed either.
+    handleHook(bash('later', 'sleep 12; echo waited'));
+    report({ ...obs(8501, '/usr/bin/python3', 'exec'), orphan: true });
+    assert.equal(sent.at(-1).said, null);
+    assert.equal(sent.at(-1).target, 'python3');
+    // And a matched shell's own launch isn't reported as part of its call.
+    matchToolShells([shellRow(8601, 'sleep 12; echo waited')]);
+    report({ ...obs(8601, '/bin/zsh', 'exec'), pid: 8601 });
+    handleHook(post('later'));
+    assert.deepEqual(sent.at(-1).seen, []);
+  } finally { setTestSink(null); }
+});
+
+test('Claude\'s own connection goes to the WebFetch call, not a parallel MCP call', async () => {
+  const { handleHook, report, setTestSink } = await import('../../tools/collector.mjs');
+  const sent = []; setTestSink((e) => sent.push(e));
+  try {
+    const base = { session_id: 'wf', claude_pid: 8400, cwd: '/p', hook_event_name: 'PreToolUse' };
+    handleHook({ ...base, tool_use_id: 'w', tool_name: 'WebFetch', tool_input: { url: 'https://example.com' } });
+    handleHook({ ...base, tool_use_id: 'm', tool_name: 'mcp__docs__guide', tool_input: {} });
+    report({ source: 'poll', kind: 'connect', target: '104.20.23.154:443', pid: 8400, pgid: 0, rootPid: 8400, isRoot: true, text: 'connect' });
+    for (const id of ['w', 'm']) handleHook({ ...base, hook_event_name: 'PostToolUse', tool_use_id: id });
+    assert.equal(sent.find((e) => e.zone === 'net').seen.length, 1);
+    assert.equal(sent.find((e) => e.target === 'mcp:docs').seen.length, 0);
+  } finally { setTestSink(null); }
+});

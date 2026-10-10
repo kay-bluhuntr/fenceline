@@ -78,7 +78,11 @@ ghost, whatever its verdict.
 The reference collector is experimental. Its Endpoint Security observer needs root and Full Disk
 Access, its `eslogger` JSON format is not stable, and it sees no network connections. Its Lite
 observer needs no permissions and sees connections, but samples, so short-lived actions are missed.
-Correlation uses process ancestry plus the tool-hook time window. A background process whose shell
+Correlation uses process ancestry, process groups and the tool-hook time window. Each Bash call's
+shell leads a process group; the collector matches the shell to its call by the command in the
+shell's arguments, so a call's processes are attributed to it even when calls run in parallel. A
+`run_in_background` call keeps its group after it returns, and its later activity is sent as reported
+"Background" events. A process that outlives an ordinary call (`cmd &`) stays unreported. A background process whose shell
 has exited is reparented to launchd; it is still attributed to Claude through its process group, when
 that group was seen under Claude or the process started during one of Claude's tool calls. Filtered
 out: Fenceline's own hook and collector processes, `git` run directly by Claude Code for its UI,
