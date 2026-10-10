@@ -207,6 +207,7 @@ test('a hosted copy opens the demo, explains itself and never dials the visitorâ
   assert.equal(await page.textContent('#modePill'), 'Simulated feed');
   assert.equal(await page.isVisible('#hosted'), true);
   assert.equal(await page.getAttribute('#hostedRepo', 'href'), 'https://github.com/kay-bluhuntr/fenceline');
+  assert.equal(await page.getAttribute('#hostedPilot', 'href'), 'https://github.com/kay-bluhuntr/fenceline/issues/new?template=pilot.yml');
   assert.equal(await page.textContent('#brandSub'), 'Simulated session');
   await page.waitForFunction(() => Number(document.querySelector('#sEvents').textContent) > 0);
   assert.deepEqual(sockets, []);

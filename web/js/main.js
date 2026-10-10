@@ -3,7 +3,7 @@
 // The loop only runs while something on the map is changing. When the map is
 // still (paused, or agents asleep in live mode) no frames are drawn at all,
 // and a new event or click wakes it again.
-import { LIMITS, REPO_URL } from './config.js';
+import { LIMITS, PILOT_URL, REPO_URL } from './config.js';
 import {
   state, hooks, setLayout, restoreSlots, resetWorld, clearWorld, dispatch, step,
   ageHighlights, activity, targetPoint, clockStr, nowStr, debugCounts, workspaceHeading
@@ -175,6 +175,7 @@ const startMode = replayParam ? 'file' : FEED_PARAM[params.get('feed')] || (feed
 if (!feed.isLocalPage) {
   $('#hosted').hidden = false;
   $('#hostedRepo').href = REPO_URL;
+  $('#hostedPilot').href = PILOT_URL;
   $('#sampleReplay').hidden = false;
   $('#brandSub').textContent = 'Simulated session';
 }

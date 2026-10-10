@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added a pilot request form (a GitHub issue form), linked from the hosted demo's banner and the README.
 - Hosted copies (GitHub Pages) open in Demo, with a banner linking to the repository, instead of an empty Live feed that can't reach the visitor's Mac. Local copies still open in Live. `?feed=demo|replay|live` overrides either.
 - Replay links: `?replay=replays/<name>.jsonl` plays a file published with the site. Same origin only, so a link can't make the page show someone else's fabricated feed.
 - A **Copy link** button on hosted copies shares the demo or the replay on screen.

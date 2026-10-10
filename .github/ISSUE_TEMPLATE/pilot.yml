@@ -1,0 +1,59 @@
+name: Pilot request
+description: Try Fenceline with a team that runs AI coding agents.
+title: "Pilot request: "
+labels: ["pilot"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your interest. A pilot means we set Fenceline up with your team, agree what you want
+        to see, and review the results together.
+
+        **This issue is public.** Don't include anything confidential. We'll reply here to arrange a
+        private conversation.
+  - type: input
+    id: team
+    attributes:
+      label: Team or company
+      description: Optional.
+  - type: dropdown
+    id: size
+    attributes:
+      label: How many developers use AI coding agents?
+      options:
+        - "1–5"
+        - "6–20"
+        - "21–100"
+        - "More than 100"
+    validations:
+      required: true
+  - type: checkboxes
+    id: agents
+    attributes:
+      label: Which agents do they use?
+      options:
+        - label: Claude Code
+        - label: GitHub Copilot
+        - label: Cursor
+        - label: OpenAI Codex
+        - label: Other (say below)
+  - type: checkboxes
+    id: os
+    attributes:
+      label: Which operating systems?
+      options:
+        - label: macOS
+        - label: Linux
+        - label: Windows
+  - type: textarea
+    id: goal
+    attributes:
+      label: What do you want to know about what your agents do?
+      description: For example, which sites they reach, whether they touch credentials, or what they don't report.
+    validations:
+      required: true
+  - type: input
+    id: contact
+    attributes:
+      label: How should we get in touch?
+      description: Optional. A public profile link is fine; we can also reply on this issue.

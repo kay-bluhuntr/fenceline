@@ -1,5 +1,22 @@
+# Dependencies and build output
 node_modules/
 dist/
 test-results/
 *.log
+
+# Per-user Claude Code settings (npm run install-hooks --project writes the hook path here)
+# and the installer's backups. Shared .claude/settings.json can still be committed.
+.claude/settings.local.json
+*.fenceline-backup
+
+# Claude Code project notes: kept on this machine, never committed
+CLAUDE.md
+CLAUDE.local.md
+
+# Local environment (FENCELINE_* settings)
+.env
+.env.*
+
+# macOS
 .DS_Store
+._*

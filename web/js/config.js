@@ -19,6 +19,8 @@ export const LIMITS = Object.freeze({
 
 // Where hosted visitors are sent to install Fenceline on their own Mac.
 export const REPO_URL = 'https://github.com/kay-bluhuntr/fenceline';
+// The pilot request form (.github/ISSUE_TEMPLATE/pilot.yml), linked from the hosted demo.
+export const PILOT_URL = `${REPO_URL}/issues/new?template=pilot.yml`;
 
 // Domains every agent is expected to reach. Anything else gets a "new" building.
 export const ALLOWLIST = ['anthropic.com', 'github.com', 'npmjs.org', 'terraform.io'];

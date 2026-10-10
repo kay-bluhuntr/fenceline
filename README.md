@@ -24,6 +24,13 @@ Fenceline puts two accounts side by side:
 
 The gap between them is the signal.
 
+## Pilots
+
+Running AI coding agents across a team and want to know what they actually do? Fenceline is looking
+for a few teams to pilot it: we set it up with you, agree what you want to see, and review the
+results together. [Ask for a pilot](https://github.com/kay-bluhuntr/fenceline/issues/new?template=pilot.yml)
+(the form is a public issue, so keep it free of anything confidential).
+
 ## Quick start
 
 ```sh
