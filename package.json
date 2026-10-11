@@ -11,12 +11,13 @@
     "install-hooks": "node tools/install-hooks.mjs",
     "uninstall-hooks": "node tools/install-hooks.mjs --uninstall",
     "build": "node tools/build.mjs",
-    "validate": "node tools/validate-events.mjs examples/sample-events.jsonl",
+    "validate": "node tools/validate-events.mjs examples/sample-events.jsonl examples/replays/*.jsonl",
     "test": "npm run test:unit && npm run build && npm run test:e2e",
     "test:unit": "node --test \"tests/unit/**/*.test.mjs\"",
     "test:e2e": "node --test --test-concurrency=1 \"tests/e2e/**/*.test.mjs\"",
     "bench": "npm run build && node tools/bench.mjs dist/fenceline.html",
-    "generate": "node tools/generate-events.mjs"
+    "generate": "node tools/generate-events.mjs",
+    "media": "npm run build && node tools/capture-media.mjs"
   },
   "keywords": [
     "ai-agents",

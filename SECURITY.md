@@ -12,7 +12,10 @@ names, commands and hostnames, and those end up in events. So the page treats ev
 
 - All event text is HTML-escaped before display, and markup is shown as plain text.
 - Field lengths, observation counts and message sizes are capped.
-- The built page makes no network requests. Live mode connects only to the address you enter.
+- The built page makes no network requests unless you open a replay link (below). Live mode connects only to the address you enter.
+- A replay link (`?replay=`) loads only `.jsonl` files from the page's own origin, without
+  credentials and up to 5 MB, so a link can't make the page present a feed from another site as if
+  it were real.
 - `npm start` binds to 127.0.0.1 and sends a strict Content-Security-Policy.
 
 These properties are covered by tests in `tests/e2e/page.test.mjs`.
