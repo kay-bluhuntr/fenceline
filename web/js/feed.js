@@ -2,10 +2,13 @@
 // Both paths go through normalize(), which treats every field as untrusted.
 import { state, dispatch, resolveKey } from './world.js';
 import { clip, normalize, parseLines } from './events.js';
+import { isTranscript, summaryNumbers, transcriptToEvents } from './transcript.js';
 import { setStatus } from './ledger.js';
 import { LIMITS, ALLOWLIST } from './config.js';
 
 let replayRaw = [], replaySrc = '', ws = null, wake = () => {}, wsBtn, urlInput;
+// Set while replaying a Claude Code transcript: its summary for the "Your agent's day" card.
+let transcriptDay = null;
 // Live mode keeps trying to reach the collector until the user stops it,
 // so starting the collector after the page (or restarting it) just works.
 let retryTimer = 0, retryDelay = 0, wantLive = false;
@@ -47,16 +50,30 @@ function countsText() {
 /* ---------- replay ---------- */
 export function hasReplay() { return replayRaw.length > 0; }
 
+/** Seconds between events: real gaps, clamped. A transcript is squeezed to play in about a minute and a half. */
+function replayGaps(raws, transcript) {
+  let prev = null;
+  const gaps = raws.map((raw, i) => {
+    const t = raw && raw.ts ? Date.parse(raw.ts) : NaN;
+    const real = prev !== null && !isNaN(t) ? (t - prev) / 1000 : NaN;
+    if (!isNaN(t)) prev = t;
+    if (i === 0) return 0;
+    if (!transcript) return isNaN(real) ? 1.6 : Math.min(4, Math.max(.5, real));
+    return isNaN(real) ? .4 : Math.min(3, Math.max(.15, real));
+  });
+  const total = gaps.reduce((a, b) => a + b, 0);
+  const scale = transcript && total > LIMITS.transcriptSeconds ? LIMITS.transcriptSeconds / total : 1;
+  return gaps.map((g) => (scale < 1 ? Math.max(.05, g * scale) : g));
+}
+
 export function startReplay() {
   if (!replayRaw.length) { setStatus('Choose a .jsonl file with one event per line.'); return; }
-  let at = state.simT + .4, prev = null;
-  state.replayQ = replayRaw.map((raw, i) => {
-    const t = raw && raw.ts ? Date.parse(raw.ts) : NaN;
-    if (i > 0) at += prev !== null && !isNaN(t) ? Math.min(4, Math.max(.5, (t - prev) / 1000)) : 1.6;
-    if (!isNaN(t)) prev = t;
-    return { at, raw };
-  });
-  setStatus(`Replaying ${state.replayQ.length} events.`, 'ok');
+  const gaps = replayGaps(replayRaw, !!transcriptDay);
+  let at = state.simT + .4;
+  state.replayQ = replayRaw.map((raw, i) => { at += gaps[i]; return { at, raw }; });
+  setStatus(transcriptDay
+    ? `Replaying your Claude Code session: ${transcriptDay.toolCalls} tool calls. It never leaves this browser.`
+    : `Replaying ${state.replayQ.length} events.`, 'ok');
   state.playing = true;
   wake();
 }
@@ -96,12 +113,14 @@ export async function loadReplayUrl(path) {
     if (text.length > LIMITS.maxReplayBytes) throw new Error('the file is too large');
     if (state.mode !== 'file') return false;   // the user switched feeds while it loaded
     replayRaw = parseLines(text);
+    transcriptDay = null;
     if (!replayRaw.length) { setStatus(`${name} has no events in it.`, 'bad'); return false; }
     const base = new URL('.', location.href).pathname;
     replaySrc = url.pathname.startsWith(base) ? url.pathname.slice(base.length) : url.pathname;
     clearHook();
     startReplay();
     loadedHook();
+    dayHook(null);
     return true;
   } catch (e) {
     setStatus(`Couldn't load ${name}: ${e.message}. Choose the file instead.`, 'bad');
@@ -111,23 +130,44 @@ export async function loadReplayUrl(path) {
 
 function onFile(ev) {
   const f = ev.target.files && ev.target.files[0];
-  if (!f) return;
+  ev.target.value = '';
+  if (f) loadFile(f);
+}
+
+/**
+ * Replay a file from disk: Fenceline events, or a Claude Code session transcript.
+ * The file is read in the browser and never sent anywhere.
+ */
+export function loadFile(f) {
+  const name = clip(f.name, 80);
+  if (f.size > LIMITS.maxLocalFileBytes) { setStatus(`${name} is too large to replay here.`, 'bad'); return; }
   const rd = new FileReader();
   rd.onload = () => {
-    replayRaw = parseLines(String(rd.result));
-    ev.target.value = '';
-    if (!replayRaw.length) { setStatus(`${f.name} has no events in it.`, 'bad'); return; }
+    const items = parseLines(String(rd.result));
+    transcriptDay = null;
+    if (isTranscript(items)) {
+      const { events, summary } = transcriptToEvents(items);
+      if (!events.length) { setStatus(`${name} is a Claude Code session with no tool calls to show.`, 'bad'); return; }
+      replayRaw = events;
+      transcriptDay = summaryNumbers(summary);
+    } else {
+      replayRaw = items;
+      if (!replayRaw.length) { setStatus(`${name} has no events in it.`, 'bad'); return; }
+    }
     replaySrc = '';
     clearHook();
     startReplay();
     loadedHook();
+    dayHook(transcriptDay);
   };
-  rd.onerror = () => setStatus(`Couldn't read ${f.name}. Try choosing it again.`, 'bad');
+  rd.onerror = () => setStatus(`Couldn't read ${name}. Try choosing it again.`, 'bad');
   rd.readAsText(f);
 }
-let clearHook = () => {}, loadedHook = () => {};
+let clearHook = () => {}, loadedHook = () => {}, dayHook = () => {};
 export function onClear(fn) { clearHook = fn; }
 export function onReplayLoaded(fn) { loadedHook = fn; }
+/** Called with the transcript summary when a session transcript is loaded, or null for other files. */
+export function onTranscriptDay(fn) { dayHook = fn; }
 
 /* ---------- live ---------- */
 export function disconnect() {

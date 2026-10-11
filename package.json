@@ -8,6 +8,7 @@
     "collector:lite": "node tools/collector.mjs --lite",
     "stop": "pkill -INT -f '^([^ ]*/)?node [^ ]*tools/(collector|serve)[.]mjs' || true",
     "verify-log": "node tools/verify-log.mjs",
+    "report": "node tools/report.mjs",
     "install-hooks": "node tools/install-hooks.mjs",
     "uninstall-hooks": "node tools/install-hooks.mjs --uninstall",
     "build": "node tools/build.mjs",

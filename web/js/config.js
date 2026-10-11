@@ -14,7 +14,9 @@ export const LIMITS = Object.freeze({
   maxMessageBytes: 1_000_000,
   maxLinesPerMessage: 500,
   maxFieldChars: 400,   // longer text from events is clipped before display
-  maxReplayBytes: 5_000_000  // largest .jsonl a replay link will load
+  maxReplayBytes: 5_000_000,  // largest .jsonl a replay link will load
+  maxLocalFileBytes: 100_000_000,  // largest file (event log or session transcript) read from disk
+  transcriptSeconds: 90       // a replayed session transcript plays in about this long
 });
 
 // Where hosted visitors are sent to install Fenceline on their own Mac.

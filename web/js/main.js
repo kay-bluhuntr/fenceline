@@ -11,6 +11,7 @@ import {
 import { initRender, resize, render, readColours, invalidate, flash } from './render.js';
 import { initLedger, setStatus, setQuiet, statsChanged } from './ledger.js';
 import * as feed from './feed.js';
+import { initDayCard, showDay } from './daycard.js';
 import { SCRIPT, INJECT } from './demo.js';
 
 const $ = (s) => document.querySelector(s);
@@ -115,12 +116,13 @@ function setMode(m, force = false) {
   document.querySelectorAll('[data-mode]').forEach(x => x.setAttribute('aria-pressed', x.dataset.mode === m ? 'true' : 'false'));
   $('#optFile').hidden = m !== 'file';
   $('#optLive').hidden = m !== 'live';
+  if (m !== 'file') showDay(null);
   $('#modePill').textContent = PILL[m];
   $('#inject').disabled = m !== 'demo';
   clearWorld();
   updateShare();
   if (m === 'demo') { warmup(6); setStatus('Scripted demo events. Switch to Replay file or Live to drive the map with your own events.'); }
-  else if (m === 'file') { if (feed.hasReplay()) feed.startReplay(); else setStatus('Choose a .jsonl file with one event per line. The format is described at the bottom of the page.'); }
+  else if (m === 'file') { if (feed.hasReplay()) feed.startReplay(); else setStatus('Choose a Fenceline event log or a Claude Code session file, or drop one onto the page.'); }
   else {
     setStatus(feed.liveHint());
     if (location.protocol !== 'file:') feed.connect();
@@ -176,10 +178,27 @@ if (!feed.isLocalPage) {
   $('#hosted').hidden = false;
   $('#hostedRepo').href = REPO_URL;
   $('#hostedPilot').href = PILOT_URL;
-  $('#sampleReplay').hidden = false;
+  $('#sampleReplays').hidden = false;
   $('#brandSub').textContent = 'Simulated session';
 }
 feed.onReplayLoaded(updateShare);
+initDayCard($('#dayCard'));
+feed.onTranscriptDay(showDay);
+
+/* ---------- your own session: choose or drop a file ---------- */
+$('#hostedOwn').addEventListener('click', () => { setMode('file'); $('#fileIn').click(); });
+const hasFiles = (ev) => [...(ev.dataTransfer?.types || [])].includes('Files');
+document.addEventListener('dragover', (ev) => { if (hasFiles(ev)) { ev.preventDefault(); document.body.classList.add('dropping'); } });
+document.addEventListener('dragleave', (ev) => { if (!ev.relatedTarget) document.body.classList.remove('dropping'); });
+document.addEventListener('drop', (ev) => {
+  if (!hasFiles(ev)) return;
+  ev.preventDefault();
+  document.body.classList.remove('dropping');
+  const f = ev.dataTransfer.files[0];
+  if (!f) return;
+  setMode('file');
+  feed.loadFile(f);
+});
 
 setLayout(resize());
 restoreSlots();

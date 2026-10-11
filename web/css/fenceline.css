@@ -112,6 +112,26 @@ tr:last-child td { border-bottom: 0; }
 th { font-family: var(--f-display); font-weight: 400; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 td code { font-family: var(--f-mono); font-size: 11.5px; white-space: nowrap; }
 td:last-child { color: var(--muted); }
+.samples { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.filehint { font-size: 12px; color: var(--muted); flex-basis: 100%; }
+.filehint code { font-family: var(--f-mono); font-size: 11.5px; }
+.linkbtn { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+body.dropping .mapwrap { outline: 3px dashed var(--accent); outline-offset: -3px; }
+
+/* "Your agent's day": summary of a replayed session transcript */
+.daycard { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 12px; display: grid; gap: 10px; }
+.dayhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.dayhead h2 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.dayspan { font-size: 12px; color: var(--muted); }
+.daygrid { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.daygrid div { background: var(--surface); padding: 8px 10px; min-width: 0; }
+.daygrid dt { font-size: 11px; color: var(--muted); }
+.daygrid dd { margin: 0; font-family: var(--f-mono); font-size: 20px; font-variant-numeric: tabular-nums; }
+.daygrid .warn dd { color: var(--warn); }
+.dayactions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.daytoggle { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.daysites, .daynote { margin: 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+@media (max-width: 560px) { .daygrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 18px; height: 0; border-top: 3px solid; display: inline-block; }

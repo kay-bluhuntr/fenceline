@@ -23,6 +23,13 @@
 - Hosted page opens in Demo with a link to the repository; replay links and Copy link for sharing.
 - A curated replay (poisoned npm package), README GIF and link-preview image.
 
+## Launch (in progress)
+
+- Replay your own Claude Code session in the browser, with a shareable "Your agent's day" card.
+- Reconstructions of real attacks (s1ngularity, GitHub issue injection).
+- Pilot kit: `npm run report` and `docs/pilots.md`.
+- MP4 launch video from `npm run media`.
+
 ## v0.3: making it useful day to day
 
 - Timeline scrubber to replay any moment of a session.
@@ -43,3 +50,7 @@
 
 - Optional incident summaries from an LLM, with incidents only and never the raw stream (see the cost watch-outs).
 - Signed event batches, so the page can tell a genuine feed from a spoofed one.
+- A team view that combines several developers' reports.
+- Claude Code's own OpenTelemetry export as a fleet-wide source of what agents reported.
+- A Linux and CI observer, and Copilot, Cursor and Codex adapters.
+- A public "can your agent sneak past the fence?" challenge, once the observer is harder to evade.

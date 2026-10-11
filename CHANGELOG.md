@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Replay your own Claude Code session**: choose or drop a session file from `~/.claude/projects` on the page (hosted or local). It's read in the browser and never sent anywhere; each tool call becomes an event, and URLs and sensitive paths in commands are shown as where the command reached. A "Your agent's day" card summarises the session and downloads as an image, with site names left out unless you add them.
+- Two reconstructions of real attacks: **s1ngularity** (Nx, 2025) and **a GitHub issue injection** (2025), with sources in `docs/replays.md`. The hosted page offers all three replays.
+- The hosted demo shows its first breach about 4 seconds after loading.
+- `npm run report`: a one-page HTML or Markdown report from the event log (breaches, checks, sessions, sites, sensitive files, log integrity), the deliverable for pilots. `docs/pilots.md` describes a pilot.
+- `npm run media` also records the s1ngularity replay as MP4 (1920×1080 and 1080×1080) into `dist/media/`.
+- Claude Code tool calls are mapped in one shared module, used by both the collector and the page.
+- Fixed: long workspace paths kept their start and lost the project folder; they now keep the end (`…/Projects/fenceline`) and show the home folder as `~`. Command buildings skip leading `VAR=value` assignments.
+- A trusted site used in a breach is labelled "Breached" rather than "Unknown".
 - Added a pilot request form (a GitHub issue form), linked from the hosted demo's banner and the README.
 - Hosted copies (GitHub Pages) open in Demo, with a banner linking to the repository, instead of an empty Live feed that can't reach the visitor's Mac. Local copies still open in Live. `?feed=demo|replay|live` overrides either.
 - Replay links: `?replay=replays/<name>.jsonl` plays a file published with the site. Same origin only, so a link can't make the page show someone else's fabricated feed.

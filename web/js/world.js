@@ -187,7 +187,8 @@ export function resolveKey(z, target) {
 
 function getBuilding(key, bad) {
   const b0 = state.buildings[key];
-  if (b0) { if (bad) b0.kind = 'bad'; return b0; }
+  // A trusted (allowlisted) site used in a breach keeps that fact, so it isn't labelled unknown.
+  if (b0) { if (bad) { if (b0.kind === 'known') b0.trusted = true; b0.kind = 'bad'; } return b0; }
   const used = new Set(Object.values(state.buildings).map(b => b.slot));
   let slot = [...Array(NET_SLOTS).keys()].find(i => !used.has(i));
   if (slot === undefined) {

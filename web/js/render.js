@@ -150,7 +150,7 @@ function drawBuildings() {
     g.restore();
     const label = b.key.length > 22 ? b.key.slice(0, 21) + '…' : b.key;
     txt(label, sl.x, sl.y + 30, { size: 10, col: b.kind === 'bad' ? C.bad : b.kind === 'new' ? C.warn : C.ink, w: b.kind === 'known' ? 400 : 500 });
-    if (b.kind === 'bad') txt('UNKNOWN', sl.x, sl.y - 30, { f: 'pix', size: 8, col: C.bad });
+    if (b.kind === 'bad') txt(b.trusted ? 'BREACHED' : 'UNKNOWN', sl.x, sl.y - 30, { f: 'pix', size: 8, col: C.bad });
     else if (b.kind === 'new') txt('NEW', sl.x, sl.y - 30, { f: 'pix', size: 8, col: C.warn });
   });
 }

@@ -26,6 +26,7 @@
     You're watching a simulated session. Fenceline runs on your own Mac, where it pairs what Claude Code
     reports with what macOS sees it do. <a id="hostedRepo" href="#">Get it on GitHub</a> ·
     <a id="hostedPilot" href="#">Running agents across a team? Ask for a pilot</a>
+    <br><button type="button" class="linkbtn" id="hostedOwn">Replay your own Claude Code session</button>: it stays in your browser.
   </p>
 
   <section class="hud" aria-label="Session totals">
@@ -61,8 +62,14 @@
           <button type="button" data-mode="live" aria-pressed="true">Live</button>
         </div>
         <div class="feedopt" id="optFile" hidden>
-          <label class="filebtn">Choose a .jsonl file<input type="file" id="fileIn" accept=".jsonl,.ndjson,.json,.txt"></label>
-          <a class="filebtn" id="sampleReplay" href="?replay=replays/poisoned-package.jsonl" hidden>Try: a poisoned npm package</a>
+          <label class="filebtn">Choose a file<input type="file" id="fileIn" accept=".jsonl,.ndjson,.json,.txt"></label>
+          <span class="samples" id="sampleReplays" hidden>Try:
+            <a class="filebtn" href="?replay=replays/poisoned-package.jsonl">A poisoned npm package</a>
+            <a class="filebtn" href="?replay=replays/s1ngularity.jsonl">s1ngularity (Nx, 2025)</a>
+            <a class="filebtn" href="?replay=replays/github-issue-injection.jsonl">A GitHub issue injection (2025)</a>
+          </span>
+          <span class="filehint">A Fenceline event log, or a Claude Code session from <code>~/.claude/projects</code>
+            (in the file picker, press ⇧⌘G and paste it). You can also drop the file onto the page. It never leaves your browser.</span>
         </div>
         <div class="feedopt" id="optLive">
           <input id="wsUrl" type="text" value="ws://127.0.0.1:8765" spellcheck="false" autocomplete="off" aria-label="Collector WebSocket address">
@@ -70,6 +77,7 @@
         </div>
         <span class="status" id="feedStatus">Connecting to the local Claude Code collector…</span>
       </div>
+      <section class="daycard" id="dayCard" hidden aria-label="Your agent's day"></section>
       <div class="legend" aria-label="Legend">
         <span><i class="sw dot k-claude"></i>Claude Code</span>
         <span><i class="sw dot k-copilot"></i>Copilot</span>

@@ -10,11 +10,12 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createInterface } from 'node:readline';
 import { homedir } from 'node:os';
-import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { listProcesses, processTree, programOf, run, startLiteObserver } from './observe-lite.mjs';
 import { DEFAULT_LOG_DIR, openEventLog } from './event-log.mjs';
+import { META_TOOLS, mapTool } from '../web/js/tool-map.js';
 
 const WS_PORT = Number(process.env.FENCELINE_WS_PORT || 8765);
 const HTTP_PORT = Number(process.env.FENCELINE_HOOK_PORT || 8766);
@@ -41,9 +42,7 @@ const finishedGroups = new Map();  // process group -> when its foreground Bash 
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'fish', 'ksh']);
 const toolWindows = [];           // { rootPid, start, end } of recent tool calls
 const WINDOW_SLACK_MS = 1500;     // ps start times are whole seconds
-// Tools with no effect outside Claude Code: not drawn, but they still identify the Claude process.
-const META_TOOLS = new Set(['ToolSearch', 'TodoWrite', 'SubagentHandback', 'AskUserQuestion',
-  'EnterPlanMode', 'ExitPlanMode', 'ListAgents', 'ListMcpResourcesTool', 'Skill']);
+// META_TOOLS (from web/js/tool-map.js) aren't drawn, but they still identify the Claude process.
 let clients;
 const allowedOrigins = new Set([
   `http://127.0.0.1:${process.env.PORT || 8080}`,
@@ -103,48 +102,8 @@ function isLocalAddress(address = '') {
 }
 
 function parseTool(event) {
-  const tool = String(event.tool_name || 'Tool');
-  const input = event.tool_input && typeof event.tool_input === 'object' ? event.tool_input : {};
   const cwd = typeof event.cwd === 'string' ? resolve(event.cwd) : process.cwd();
-  let target, zone;
-
-  if (['Read', 'Edit', 'Write', 'NotebookEdit', 'Glob', 'Grep'].includes(tool)) {
-    target = String(input.file_path || input.path || input.pattern || tool);
-    const absolute = isAbsolute(target) ? resolve(target) : resolve(cwd, target);
-    const rel = relative(cwd, absolute);
-    zone = rel === '..' || rel.startsWith(`..${sep}`) ? 'vault' : 'fence';
-    if (zone === 'fence') target = rel || '.';
-  } else if (['WebFetch', 'WebSearch'].includes(tool)) {
-    target = String(input.url || input.query || tool);
-    zone = 'net';
-  } else if (tool.startsWith('mcp__')) {
-    // mcp__<server>__<tool>: one building per MCP server.
-    const [, server = 'mcp', name = tool] = tool.match(/^mcp__(.+?)__(.+)$/) || [];
-    target = `mcp:${server}`;
-    zone = 'tools';
-    return { cwd, zone, target: target.slice(0, 2048),
-      said: { source: 'hook', text: `MCP ${server}: ${name} ${JSON.stringify(input)}`.slice(0, 4000) },
-      title: `MCP ${server}: ${name}`.slice(0, 200) };
-  } else if (tool === 'Agent' || tool === 'Task') {
-    const type = String(input.subagent_type || 'general-purpose');
-    target = `agent:${type}`;
-    zone = 'tools';
-    return { cwd, zone, target,
-      said: { source: 'hook', text: `${tool} (${type}): ${input.description || ''} ${input.prompt || ''}`.slice(0, 4000) },
-      title: `Subagent ${type}: ${input.description || 'task'}`.slice(0, 200) };
-  } else {
-    const command = String(input.command || input.query || input.prompt || '');
-    target = command || tool;
-    zone = 'tools';
-  }
-
-  return {
-    cwd,
-    zone,
-    target: target.slice(0, 2048),
-    said: { source: 'hook', text: `${tool}: ${target}`.slice(0, 4000) },
-    title: `${tool}: ${target}`.slice(0, 200)
-  };
+  return { cwd, ...mapTool(event.tool_name, event.tool_input, cwd, 'hook') };
 }
 
 /* ---------- Endpoint Security (eslogger) parsing ---------- */

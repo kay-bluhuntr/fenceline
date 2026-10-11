@@ -44,8 +44,17 @@ export function siteOf(target) {
   return p.slice(twoPart ? -3 : -2).join('.');
 }
 
+// The program a command runs: skips leading VAR=value assignments and trailing ; & |.
 export function toolName(target) {
-  return String(target).trim().split(/\s+/)[0].split('/').pop() || 'tool';
+  const words = String(target).trim().split(/\s+/);
+  const first = words.find(w => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w)) || words[0] || '';
+  return first.replace(/[;&|]+$/, '').split('/').pop() || 'tool';
+}
+
+/** Clip from the start, keeping the end: for paths, where the last folder matters most. */
+export function clipStart(t, n) {
+  const s = String(t);
+  return s.length > n ? '…' + s.slice(s.length - n + 1) : s;
 }
 
 export function workspaceSegment(path) {
@@ -169,7 +178,7 @@ export function normalize(raw, { resolveKey = (z, t) => t, allowlist = [], maxCh
     else if (z === 'net' && !allowlist.includes(k)) rule = 'First visit to this domain';
   }
   const title = clip(raw.title ? String(raw.title) : `${VERB[z]} ${z === 'net' ? k : target}`, 90);
-  const workspace = raw.workspace ? clip(String(raw.workspace), 60) : undefined;
+  const workspace = raw.workspace ? clipStart(String(raw.workspace).replace(/^\/Users\/[^/]+/, '~'), 60) : undefined;
   const session = typeof raw.session === 'string' && raw.session ? clip(raw.session, 100) : undefined;
   return { a, title, said, seen, z, k, v, rule, ts: raw.ts, workspace, session };
 }

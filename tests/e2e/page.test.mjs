@@ -202,6 +202,14 @@ async function openHosted(path = '', { viewport = { width: 1280, height: 900 }, 
   return { page, context, requests, sockets, errors };
 }
 
+test('the hosted demo shows its first breach within about 6 seconds', async () => {
+  const t0 = Date.now();
+  const { page, context } = await openHosted();
+  await page.waitForFunction(() => Number(document.querySelector('#sBreach').textContent) > 0, null, { timeout: 6500 });
+  assert.ok(Date.now() - t0 < 7500, `first breach took ${Date.now() - t0} ms`);
+  await context.close();
+});
+
 test('a hosted copy opens the demo, explains itself and never dials the visitor’s Mac', async () => {
   const { page, context, sockets, errors } = await openHosted();
   assert.equal(await page.textContent('#modePill'), 'Simulated feed');
@@ -266,6 +274,66 @@ test('Copy link shares the replay that is on screen', async () => {
   await page.click('[data-mode="demo"]');
   await page.click('#share');
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), HOST + '?feed=demo');
+  await context.close();
+});
+
+for (const [name, breaches] of [['s1ngularity', 7], ['github-issue-injection', 1]]) {
+  test(`the ${name} reconstruction plays from its link and reaches a breach early`, async () => {
+    const { page, context, errors } = await openHosted(`?replay=replays/${name}.jsonl`);
+    assert.equal(await page.isVisible(`#sampleReplays a[href="?replay=replays/${name}.jsonl"]`), true);
+    await page.click('[data-speed="4"]');
+    await page.waitForFunction(() => Number(document.querySelector('#sBreach').textContent) > 0, null, { timeout: 15000 });
+    await page.waitForFunction(() => document.querySelector('#feedStatus').textContent.startsWith('Replay finished'), null, { timeout: 60000 });
+    await page.waitForFunction((n) => Number(document.querySelector('#sBreach').textContent) === n, breaches, { timeout: 15000 });
+    assert.deepEqual(errors, []);
+    await context.close();
+  });
+}
+
+test('a visitor can replay their own Claude Code session without it leaving the browser', async () => {
+  const { page, context, requests, errors } = await openHosted('', { permissions: [] });
+  const before = requests.length;
+  // The banner button opens the file picker in Replay mode.
+  const chooser = page.waitForEvent('filechooser');
+  await page.click('#hostedOwn');
+  await (await chooser).setFiles(resolve('tests/fixtures/claude-session.jsonl'));
+  await page.waitForFunction(() => /Replaying your Claude Code session: 8 tool calls/.test(document.querySelector('#feedStatus').textContent));
+  assert.equal(await page.isVisible('#dayCard'), true);
+  const stat = (label) => page.locator('#dayCard .daygrid div', { hasText: label }).locator('dd').innerText();
+  assert.equal(await stat('Tool calls'), '8');
+  assert.equal(await stat('Sensitive files'), '2');
+  assert.equal(await stat('Sites reached'), '2');
+  // Site names stay out until the visitor asks for them.
+  assert.equal(await page.isVisible('#dayCard .daysites'), false);
+  await page.check('#daySites');
+  assert.match(await page.innerText('#dayCard .daysites'), /collect\.evil\.example\.net/);
+  // The image is made in the page and downloaded directly.
+  const download = page.waitForEvent('download');
+  await page.click('#dayDownload');
+  assert.equal((await download).suggestedFilename(), 'my-claude-code-day.png');
+  await page.waitForFunction(() => document.querySelector('#feedStatus').textContent.startsWith('Replay finished'), null, { timeout: 120000 });
+  assert.match(await page.innerText('#log'), /Command reached collect\.evil\.example\.net/);
+  // Nothing was fetched or sent after the page loaded.
+  assert.deepEqual(requests.slice(before).filter(u => !u.startsWith('blob:') && !u.startsWith('data:')), []);
+  assert.deepEqual(errors, []);
+  // Leaving Replay hides the card.
+  await page.click('[data-mode="demo"]');
+  assert.equal(await page.isVisible('#dayCard'), false);
+  await context.close();
+});
+
+test('a session file can be dropped onto the page', async () => {
+  const { page, context } = await openHosted();
+  const text = await readFile('tests/fixtures/claude-session.jsonl', 'utf8');
+  const dt = await page.evaluateHandle((t) => {
+    const d = new DataTransfer();
+    d.items.add(new File([t], 'session.jsonl', { type: 'application/x-ndjson' }));
+    return d;
+  }, text);
+  await page.dispatchEvent('body', 'dragover', { dataTransfer: dt });
+  await page.dispatchEvent('body', 'drop', { dataTransfer: dt });
+  await page.waitForFunction(() => /Replaying your Claude Code session/.test(document.querySelector('#feedStatus').textContent));
+  assert.equal(await page.textContent('#modePill'), 'Replaying file');
   await context.close();
 });
 

@@ -7,10 +7,19 @@ character inside a fenced workspace. When it reaches a website, runs a tool or t
 folder, you watch it walk there. When the operating system sees something the agent never reported,
 a ghost walks the route instead, cracks the fence, and raises an incident.
 
-**[Try it in your browser](https://kay-bluhuntr.github.io/fenceline/)** · or watch
-[a poisoned npm package steal credentials while Claude Code reports "all tests pass"](https://kay-bluhuntr.github.io/fenceline/?replay=replays/poisoned-package.jsonl).
-Nothing to install; the hosted page plays simulated sessions. To watch your own agents, run it on
-your Mac (below).
+The Sims, for your AI agents. **[Try it in your browser](https://kay-bluhuntr.github.io/fenceline/)**,
+nothing to install:
+
+- **Replay your own Claude Code session.** Drop a session file from `~/.claude/projects` onto the page
+  and watch your agent's day, with a summary card you can download. The file is read in your browser
+  and never sent anywhere. A transcript shows what the agent *said*; run Fenceline locally to also see
+  what your Mac *saw*.
+- **Watch real attacks, reconstructed**:
+  [s1ngularity](https://kay-bluhuntr.github.io/fenceline/?replay=replays/s1ngularity.jsonl), where an
+  npm install script turned developers' own AI CLIs against them (Nx, 2025), and
+  [a GitHub issue injection](https://kay-bluhuntr.github.io/fenceline/?replay=replays/github-issue-injection.jsonl)
+  that leaks private repositories through reported steps (2025). Sources in [docs/replays.md](docs/replays.md).
+- **Or the classic:** [a poisoned npm package steals credentials while Claude Code reports "all tests pass"](https://kay-bluhuntr.github.io/fenceline/?replay=replays/poisoned-package.jsonl).
 
 ![Fenceline replaying a poisoned npm package: three unreported actions become breaches](docs/img/fenceline-demo.gif)
 
@@ -27,8 +36,9 @@ The gap between them is the signal.
 ## Pilots
 
 Running AI coding agents across a team and want to know what they actually do? Fenceline is looking
-for a few teams to pilot it: we set it up with you, agree what you want to see, and review the
-results together. [Ask for a pilot](https://github.com/kay-bluhuntr/fenceline/issues/new?template=pilot.yml)
+for a few teams to pilot it: two weeks on your developers' Macs, nothing uploaded, and a weekly report
+from `npm run report` that we review together. [How pilots work](docs/pilots.md) ·
+[Ask for a pilot](https://github.com/kay-bluhuntr/fenceline/issues/new?template=pilot.yml)
 (the form is a public issue, so keep it free of anything confidential).
 
 ## Quick start
@@ -229,6 +239,7 @@ npm run build          # dist/fenceline.html, about 200 KB with assets inlined
 | `npm run collector:lite` | The same, with the permission-free Lite observer only |
 | `npm run stop` | Stop the collector and page server, wherever they were started |
 | `npm run verify-log` | Check the event log files haven't been edited |
+| `npm run report` | One-page HTML report of the last 7 days from the event log (`--days N`, `--from`/`--to`, `--md`, `--out FILE`) |
 | `npm run install-hooks` | Add the Fenceline hooks to Claude Code (`--project DIR` for one project); `npm run uninstall-hooks` removes them |
 | `npm run build` | Self-contained `dist/fenceline.html` |
 | `npm test` | Unit tests, build, then browser tests |
@@ -253,6 +264,8 @@ docs/           architecture, event format, performance and cost, roadmap
 
 - [Architecture](docs/architecture.md)
 - [Event format](docs/event-format.md)
+- [Replays and their sources](docs/replays.md)
+- [Pilots](docs/pilots.md)
 - [Performance and cost review](docs/performance-and-cost.md)
 - [Roadmap](docs/roadmap.md)
 - [Security](SECURITY.md)

@@ -15,6 +15,9 @@ test('siteOf groups hosts by registrable domain', () => {
 
 test('toolName, workspaceSegment and vaultLabel pick stable map keys', () => {
   assert.equal(toolName('/opt/homebrew/bin/terraform plan'), 'terraform');
+  assert.equal(toolName('D=/tmp/x; C=~/y; rm -rf $C'), 'rm');
+  assert.equal(toolName('pw; ls'), 'pw');
+  assert.equal(toolName('A=1'), 'A=1');
   assert.deepEqual(workspaceSegment('./src/app/main.py'), { seg: 'src', isDir: true });
   assert.deepEqual(workspaceSegment('README.md'), { seg: 'README.md', isDir: false });
   assert.equal(vaultLabel('/Users/kay/.ssh/id_ed25519').known, 'ssh');
@@ -89,4 +92,12 @@ test('private hosts: IPv4 ranges, IPv6 and local names', () => {
     assert.equal(isPrivateHost(h), true, h);
   for (const h of ['8.8.8.8', '172.32.0.1', '100.128.0.1', 'example.com', '2606:4700::6810:84e5:443', 'https://api.github.com/x'])
     assert.equal(isPrivateHost(h), false, h);
+});
+
+test('long workspace paths keep their last folders, with the home folder shortened', () => {
+  const e = normalize({ agent: 'claude-code', zone: 'fence', target: 'a.js', said: 'x',
+    workspace: '/Users/someone/Library/CloudStorage/OneDrive-Personal/Claude/Projects/fenceline' });
+  assert.equal(e.workspace.endsWith('/Projects/fenceline'), true);
+  assert.equal(e.workspace.length <= 60, true);
+  assert.equal(normalize({ agent: 'claude-code', zone: 'fence', target: 'a', said: 'x', workspace: '/Users/someone/code/app' }).workspace, '~/code/app');
 });
