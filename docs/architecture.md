@@ -36,6 +36,9 @@ flowchart LR
 | `tools/collector.mjs` | Local WebSocket + hook receiver; runs an observer and correlates observed events with Claude Code tool hooks. |
 | `tools/observe-lite.mjs` | Permission-free observer: samples `ps` and `lsof` for the Claude process tree. |
 | `tools/claude-hook.mjs` | Forwards Claude Code pre/post tool events to the local collector. |
+| `web/js/console.js` | The default Console view: filterable event table, coverage line and JSONL export. |
+| `tools/fence-check.mjs` | Detection test: a stand-in agent drives the real collector and hook with planted actions and scores the result. |
+| `tools/report.mjs` | Report from the event log, with coverage and detection checks; `--json` and `--merge` for a team. |
 
 ## Map model
 
@@ -89,4 +92,4 @@ out: Fenceline's own hook and collector processes, `git` run directly by Claude 
 Claude Code's bookkeeping files under `~/.claude` and its background-task output files, and handles
 Claude already held before a session. MCP calls are drawn as one `mcp:<server>` building per server,
 and subagents as `agent:<type>`. See
-[Local Claude Code monitoring](../README.md#local-claude-code-monitoring) for setup and limitations.
+[Setup and reference](setup.md) for setup and limitations.

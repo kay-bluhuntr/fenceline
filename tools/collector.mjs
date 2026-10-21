@@ -79,13 +79,13 @@ let testSink = null;
 function setTestSink(fn) { testSink = fn; }
 
 function setObserver(observer, detail) {
-  observerStatus = { type: 'status', observer, detail };
+  observerStatus = { type: 'status', ts: now(), observer, detail };
   sendEvent(observerStatus);
 }
 
 function sendEvent(event) {
   if (testSink) { testSink(event); return; }
-  if (eventLog && event.type !== 'status') eventLog.write(event);
+  if (eventLog) eventLog.write(event);   // status lines too: the report shows which observer was running
   if (!clients) return;
   const message = JSON.stringify(event);
   for (const client of clients.clients) {
@@ -483,8 +483,11 @@ function startEs({ fallback }) {
     stdio: ['inherit', 'pipe', 'inherit']
   });
   const rootsTimer = setInterval(() => refreshProcessRoots().catch(() => {}), 500);
-  setObserver('es', 'Endpoint Security observer: every process launch and file open or write');
+  // Announced on eslogger's first event, not at spawn: without Full Disk Access it exits at once,
+  // and the logged status is what the report's coverage line trusts.
+  let running = false;
   createInterface({ input: logger.stdout }).on('line', (line) => {
+    if (!running) { running = true; setObserver('es', 'Endpoint Security observer: every process launch and file open or write'); }
     try {
       emitObserved(JSON.parse(line));
     } catch (err) {

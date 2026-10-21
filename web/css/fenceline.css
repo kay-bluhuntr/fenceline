@@ -196,3 +196,32 @@ body.dropping .mapwrap { outline: 3px dashed var(--accent); outline-offset: -3px
 .card p { margin: 0; font-size: 13px; color: var(--muted); }
 pre { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 10px 12px; overflow-x: auto; font-family: var(--f-mono); font-size: 11.5px; line-height: 1.5; }
 
+
+/* Console: the default view, a plain table of every event for a security team */
+.topright { display: flex; align-items: center; gap: 10px; }
+.console { display: grid; gap: 10px; min-width: 0; }
+.coverage { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 13px; }
+.coverage b { font-weight: 600; margin-right: 4px; }
+.coverage em { font-style: normal; }
+.coverage em.bad { color: var(--bad); font-weight: 600; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filters select, .filters input[type="search"] { font: inherit; font-size: 13px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; max-width: 100%; }
+.filters input[type="search"] { width: 16rem; }
+.filters :is(select, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.filters .check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.filters .spacer { flex: 1; }
+.console .count { margin: 0; color: var(--muted); font-size: 12px; }
+table.events { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.events th { text-align: left; font-family: var(--f-body); text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 500; color: var(--muted); padding: 7px 8px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface); }
+table.events td { vertical-align: top; padding: 7px 8px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+table.events td.when { white-space: nowrap; font-family: var(--f-mono); font-size: 12px; }
+table.events td.code { font-family: var(--f-mono); font-size: 12px; min-width: 14rem; }
+table.events td.code b { font-weight: 500; color: var(--muted); }
+table.events td.code .sampled b { text-decoration: underline dotted; }
+table.events tr.v-breach { background: color-mix(in srgb, var(--bad) 6%, transparent); }
+table.events .pill { display: inline-block; margin: 0 4px 4px 0; }
+table.events .muted { color: var(--muted); font-size: 12px; }
+table.events summary { cursor: pointer; font-weight: 500; }
+table.events pre { margin: 6px 0 0; padding: 8px; font-size: 11px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; max-width: 34rem; overflow-x: auto; white-space: pre-wrap; }
+table.events td:last-child { color: var(--ink); }
+.console .tablewrap { max-height: 72vh; overflow: auto; }

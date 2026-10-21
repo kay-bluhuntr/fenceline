@@ -20,7 +20,7 @@ for (const file of files) {
   const day = basename(file).match(/^(\d{4}-\d{2}-\d{2})\.jsonl$/)?.[1];
   if (!day) { console.log(`${file}: skipped, not a daily log file`); continue; }
   const r = verifyChain(readFileSync(file, 'utf8'), day);
-  if (r.ok) console.log(`${file}: OK, ${r.lines} events`);
+  if (r.ok) console.log(`${file}: OK, ${r.lines} lines`);
   else { bad++; console.log(`${file}: CHANGED at line ${r.brokenAt}; that line or one before it was edited, inserted or removed`); }
 }
 process.exit(bad ? 1 : 0);

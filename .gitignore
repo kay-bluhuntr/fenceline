@@ -18,6 +18,7 @@ launch/
 
 # Reports from npm run report: they contain commands and paths
 fenceline-report-*
+fenceline-team-report-*
 
 # Local environment (FENCELINE_* settings)
 .env

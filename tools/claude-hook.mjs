@@ -26,7 +26,7 @@ try {
     hook_pid: process.pid,
     claude_pid: process.ppid
   };
-  const response = await fetch('http://127.0.0.1:8766/events', {
+  const response = await fetch(`http://127.0.0.1:${process.env.FENCELINE_HOOK_PORT || 8766}/events`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),

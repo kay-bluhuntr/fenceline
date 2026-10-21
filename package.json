@@ -1,7 +1,7 @@
 {
   "name": "fenceline",
   "version": "0.2.0",
-  "description": "A gamified monitor that shows what AI coding agents do on your Mac, and flags anything they did without reporting it.",
+  "description": "An evidence console for AI coding agents: what they said, what your Mac saw, and anything they did without reporting it.",
   "scripts": {
     "start": "node tools/serve.mjs",
     "collector": "node tools/collector.mjs",
@@ -9,6 +9,7 @@
     "stop": "pkill -INT -f '^([^ ]*/)?node [^ ]*tools/(collector|serve)[.]mjs' || true",
     "verify-log": "node tools/verify-log.mjs",
     "report": "node tools/report.mjs",
+    "fence-check": "node tools/fence-check.mjs",
     "install-hooks": "node tools/install-hooks.mjs",
     "uninstall-hooks": "node tools/install-hooks.mjs --uninstall",
     "build": "node tools/build.mjs",

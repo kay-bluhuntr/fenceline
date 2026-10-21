@@ -17,7 +17,7 @@ export const state = {
 };
 
 // Set by main.js so the world can ask for visual side effects without importing the renderer.
-export const hooks = { onBreach: () => {}, onWorkspace: () => {} };
+export const hooks = { onBreach: () => {}, onWorkspace: () => {}, onEvent: () => {} };
 
 /* ---------- layout ---------- */
 function buildLayout(p) {
@@ -297,6 +297,8 @@ export function dispatch(step) {
   };
   e.clock = (step.ts && fmtTs(step.ts)) || (state.mode === 'live' ? nowStr() : clockStr(state.simT));
   if (step.ts && fmtTs(step.ts)) state.lastTs = e.clock;
+  // The console gets the event's own verdict, not the map's first-visit upgrade, so it matches the report.
+  hooks.onEvent({ ...step, clock: e.clock });
   state.lastUsed[e.z + ':' + e.k] = state.simT;
 
   w.asleep = false; w.idleFor = 0;

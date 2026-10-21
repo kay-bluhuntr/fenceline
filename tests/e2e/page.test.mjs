@@ -10,11 +10,12 @@ let browser;
 before(async () => { browser = await chromium.launch(); });
 after(async () => { await browser?.close(); });
 
-async function open(viewport = { width: 1280, height: 900 }) {
+// Most tests below exercise the map, so they open the Map tab; the console tests pass view 'console'.
+async function open(viewport = { width: 1280, height: 900 }, view = 'map') {
   const page = await browser.newPage({ viewport });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  await page.goto(PAGE);
+  await page.goto(`${PAGE}?view=${view}`);
   await page.waitForTimeout(800);
   return { page, errors };
 }
@@ -137,7 +138,7 @@ test('each Claude Code session gets its own named character and log label', asyn
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const sockets = [];
   await page.routeWebSocket('ws://127.0.0.1:8765', ws => sockets.push(ws));
-  await page.goto(PAGE);
+  await page.goto(`${PAGE}?view=map`);
   await page.click('#wsBtn');
   await page.waitForFunction(() => document.querySelector('#feedStatus').textContent.startsWith('Connected'));
   const ev = (session, workspace, target) => JSON.stringify({ agent: 'claude-code', zone: 'fence', target, said: 'Read', session, workspace });
@@ -179,7 +180,7 @@ test('built file makes no network requests', async () => {
 const HOST = 'https://fenceline.test/fenceline/';
 
 // Serves the built page and example replays as a hosted site would, and records every request.
-async function openHosted(path = '', { viewport = { width: 1280, height: 900 }, permissions = [] } = {}) {
+async function openHosted(path = '', { viewport = { width: 1280, height: 900 }, permissions = [], view = 'map' } = {}) {
   const context = await browser.newContext({ viewport, permissions });
   const page = await context.newPage();
   const requests = [], sockets = [], errors = [];
@@ -197,7 +198,7 @@ async function openHosted(path = '', { viewport = { width: 1280, height: 900 }, 
     }
     return route.fulfill({ status: 404, body: 'not found' });
   });
-  await page.goto(HOST + path);
+  await page.goto(HOST + path + (path.includes('?') ? '&' : '?') + `view=${view}`);
   await page.waitForTimeout(800);
   return { page, context, requests, sockets, errors };
 }
@@ -342,4 +343,82 @@ test('hosted page at phone width has no horizontal scroll', async () => {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
   await page.screenshot({ path: 'test-results/hosted-phone.png', fullPage: false });
   await context.close();
+});
+
+/* ---------- console ---------- */
+const { normalize, parseLines } = await import('../../web/js/events.js');
+
+test('the console is the default view and shows a whole replay at once', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(PAGE);
+  assert.equal(await page.isVisible('#consoleView'), true);
+  assert.equal(await page.isVisible('#map'), false);
+  const file = resolve('examples/replays/poisoned-package.jsonl');
+  const events = parseLines(await readFile(file, 'utf8')).map((raw) => normalize(raw));
+  await page.click('[data-mode="file"]');
+  await page.setInputFiles('#fileIn', file);
+  await page.waitForFunction((n) => document.querySelectorAll('#cRows tr').length === n, events.length, { timeout: 2000 });
+  const breaches = events.filter((e) => e.v === 'breach').length;
+  assert.ok(breaches > 0);
+  await page.selectOption('#fVerdict', 'breach');
+  await page.waitForFunction((n) => document.querySelectorAll('#cRows tr').length === n, breaches);
+  assert.match(await page.evaluate(() => location.hash), /v=breach/);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('#exportBtn')]);
+  const lines = (await readFile(await download.path(), 'utf8')).trim().split('\n');
+  assert.equal(lines.length, breaches);
+  assert.ok(lines.every((l) => normalize(JSON.parse(l)).v === 'breach'), 'the export holds the raw events that matched');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('the console shows markup as text and its filters narrow the rows', async () => {
+  const { page } = await open(undefined, 'console');
+  const evil = '<img src=x onerror="window.__pwned=1">';
+  const lines = [
+    { agent: 'claude-code', zone: 'vault', target: evil, title: evil, said: null, seen: [{ source: '<svg', text: evil, sampled: true }], rule: evil, workspace: '/Users/me/a' },
+    { agent: 'copilot', zone: 'net', target: 'x.example.com', said: { source: 'hook', text: evil }, seen: evil, workspace: '/Users/me/b' }
+  ].map(l => JSON.stringify(l)).join('\n');
+  await page.click('[data-mode="file"]');
+  await page.setInputFiles('#fileIn', { name: 'evil.jsonl', mimeType: 'application/x-ndjson', buffer: Buffer.from(lines) });
+  await page.waitForFunction(() => document.querySelectorAll('#cRows tr').length === 2);
+  assert.equal(await page.evaluate(() => window.__pwned), undefined);
+  assert.equal(await page.locator('#cRows img, #cRows svg, #fSession img').count(), 0);
+  assert.ok((await page.innerText('#cRows')).includes('<img'));
+  assert.match(await page.innerText('#coverage'), /sampled/i);
+  await page.check('#fUnreported');
+  await page.waitForFunction(() => document.querySelectorAll('#cRows tr').length === 1);
+  await page.uncheck('#fUnreported');
+  await page.fill('#fText', 'example.com');
+  await page.waitForFunction(() => document.querySelectorAll('#cRows tr').length === 1);
+  await page.close();
+});
+
+test('a row opened in the console stays open as live events arrive', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const sockets = [];
+  await page.routeWebSocket('ws://127.0.0.1:8765', ws => sockets.push(ws));
+  await page.goto(`${PAGE}?view=console`);
+  await page.click('#wsBtn');
+  await page.waitForFunction(() => document.querySelector('#feedStatus').textContent.startsWith('Connected'));
+  const ev = (target) => JSON.stringify({ agent: 'claude-code', zone: 'fence', target, said: 'Read', session: 's1' });
+  sockets[0].send(ev('first.js'));
+  await page.waitForFunction(() => document.querySelectorAll('#cRows tr').length === 1);
+  await page.click('#cRows summary');
+  sockets[0].send(ev('second.js'));
+  await page.waitForFunction(() => document.querySelectorAll('#cRows tr').length === 2);
+  assert.equal(await page.locator('#cRows details[open]').count(), 1);
+  assert.match(await page.locator('#cRows details[open]').innerText(), /first\.js/);
+  await page.close();
+});
+
+test('the Map tab switches views and the choice is remembered', async () => {
+  const { page } = await open(undefined, 'console');
+  await page.click('[data-view="map"]');
+  assert.equal(await page.isVisible('#map'), true);
+  assert.equal(await page.isVisible('#consoleView'), false);
+  await page.goto(PAGE);
+  assert.equal(await page.isVisible('#map'), true, 'reopening keeps the last view');
+  await page.close();
 });
