@@ -27,10 +27,11 @@ function ingest(raw) {
   // A status message from the collector, not an event: say which OS observer is running.
   if (raw && raw.type === 'status') {
     observerNote = clip(String(raw.detail || raw.observer || ''), 160);
+    statusHook(raw.observer);
     return true;
   }
   try {
-    dispatch(normalize(raw, { resolveKey, allowlist: ALLOWLIST, maxChars: LIMITS.maxFieldChars }));
+    dispatch({ ...normalize(raw, { resolveKey, allowlist: ALLOWLIST, maxChars: LIMITS.maxFieldChars }), raw });
     state.accepted++;
     return true;
   } catch (err) {
@@ -49,6 +50,8 @@ function countsText() {
 
 /* ---------- replay ---------- */
 export function hasReplay() { return replayRaw.length > 0; }
+/** The loaded replay's events, for the console to show all at once. */
+export function replayItems() { return replayRaw; }
 
 /** Seconds between events: real gaps, clamped. A transcript is squeezed to play in about a minute and a half. */
 function replayGaps(raws, transcript) {
@@ -163,7 +166,9 @@ export function loadFile(f) {
   rd.onerror = () => setStatus(`Couldn't read ${name}. Try choosing it again.`, 'bad');
   rd.readAsText(f);
 }
-let clearHook = () => {}, loadedHook = () => {}, dayHook = () => {};
+let clearHook = () => {}, loadedHook = () => {}, dayHook = () => {}, statusHook = () => {};
+/** Called with the observer name from each collector status message. */
+export function onStatus(fn) { statusHook = fn; }
 export function onClear(fn) { clearHook = fn; }
 export function onReplayLoaded(fn) { loadedHook = fn; }
 /** Called with the transcript summary when a session transcript is loaded, or null for other files. */

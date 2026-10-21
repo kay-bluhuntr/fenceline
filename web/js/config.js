@@ -9,6 +9,7 @@ export const LIMITS = Object.freeze({
   maxTrails: 40,
   maxRings: 24,
   logRows: 60,          // rows kept in the activity log
+  consoleEvents: 5000,  // events kept in the console, for filtering and export
   incidentsShown: 3,
   idleSleepSec: 8,      // an idle agent stops wandering (and the loop sleeps)
   maxMessageBytes: 1_000_000,

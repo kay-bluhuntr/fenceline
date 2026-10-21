@@ -5,16 +5,16 @@ Fenceline is looking for a few engineering teams to pilot it. A pilot answers on
 
 ## Who it's for
 
-- Teams of 3–15 developers using Claude Code on Macs, with or without Copilot.
+- Teams of 3–15 developers using Claude Code on Macs. Copilot isn't monitored yet.
 - A CTO or engineering lead who wants evidence, not guesses, before setting agent policy.
 
 ## What a pilot includes
 
 | Week | What happens |
 |---|---|
-| Setup (about 30 minutes per developer) | Each developer installs Fenceline and the Claude Code hooks: `npm ci`, `npm run install-hooks`, `npm run collector:lite`. No admin rights or Full Disk Access needed. |
+| Setup (about 30 minutes per developer) | Each developer installs Fenceline and the Claude Code hooks: `npm ci`, `npm run install-hooks`, `npm run collector:lite`, then `npm run fence-check` to prove detection on that Mac. No admin rights or Full Disk Access needed. |
 | Weeks 1 and 2 | Developers work as normal. Each laptop keeps a private, tamper-evident daily log. |
-| End of each week | Each developer runs `npm run report` and reviews their report before sharing it. We go through the reports with you. |
+| End of each week | Each developer runs `npm run report` and reviews their report, then shares `npm run report -- --json`. `npm run report -- --merge *.json` combines them into one team report, with which days each Mac was monitored. We go through it with you. |
 | Close | A findings summary: unreported actions, sites reached, sensitive files touched, and suggested agent settings and allowlists. |
 
 ## What stays on each laptop
@@ -27,11 +27,13 @@ Fenceline is looking for a few engineering teams to pilot it. A pilot answers on
 
 ## What it can and can't tell you
 
+- **Proven on each Mac:** `npm run fence-check` plants actions and shows what was caught, missed and
+  accepted; the results appear in each report.
 - **Can:** every tool call Claude Code reports; processes, files and network connections from
   Claude's process tree that no tool call reported; background tasks; interrupted tool calls.
 - **Can't, in Lite mode:** actions shorter than its sampling interval, or host names (connections show
   as IP addresses). Endpoint Security mode closes most of the first gap but needs Full Disk Access.
-  See the [README](../README.md#local-claude-code-monitoring) for the full list of limits.
+  See [Setup and reference](setup.md#observers) for the full list of limits.
 
 ## Ask for a pilot
 

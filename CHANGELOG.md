@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Console**, now the default view: every event in a filterable table (agent, workspace, zone, verdict, text, "seen only"), what the agent said beside what the Mac saw, the raw event under each action, and a coverage line saying which observer is running. **Export JSONL** downloads the matching events; filters are kept in the address. A replay file shows all at once. The map is the **Map** tab (`?view=map`), and the page remembers the last view.
+- **`npm run fence-check`**: a detection test that runs the real collector and hook with a stand-in agent, plants actions against canary files and prints a scorecard. It exits non-zero on a failed detection, saves each result for the report, and runs in CI on macOS.
+- fence-check found a gap: an agent whose Bash command replaces its shell with the hook (`exec`) gets its forged report accepted. It is reported as a known gap, documented in the README, and on the roadmap for v0.4.
+- `npm run report` shows **coverage** (which days the collector ran, with which observer) and the detection checks in its period. `--json` writes a report for sharing, and `--merge a.json b.json …` makes one team report.
+- The collector logs its observer status lines, so the report can show coverage.
+- The hook reads `FENCELINE_HOOK_PORT`, so a second collector (such as fence-check's) can run alongside.
+- GitHub Actions are pinned to commit SHAs.
+- A shorter README: what Fenceline does, how to try it and how to run it. The full reference moved to `docs/setup.md`. Copilot monitoring is planned for v0.4 (see the roadmap).
 - **Replay your own Claude Code session**: choose or drop a session file from `~/.claude/projects` on the page (hosted or local). It's read in the browser and never sent anywhere; each tool call becomes an event, and URLs and sensitive paths in commands are shown as where the command reached. A "Your agent's day" card summarises the session and downloads as an image, with site names left out unless you add them.
 - Two reconstructions of real attacks: **s1ngularity** (Nx, 2025) and **a GitHub issue injection** (2025), with sources in `docs/replays.md`. The hosted page offers all three replays.
 - The hosted demo shows its first breach about 4 seconds after loading.
@@ -30,7 +38,7 @@
 - Two observers: Endpoint Security (`eslogger`, needs `sudo` and Full Disk Access) and Lite (`npm run collector:lite`, samples `ps` and `lsof`, needs no permissions and also sees network connections). The default tries Endpoint Security and falls back to Lite.
 - Background processes that outlive their shell are still attributed to Claude, through their process group.
 - MCP calls are drawn as one building per server, and subagents as one per type.
-- Hook reports are accepted only from the Fenceline hook started directly by a top-level Claude Code process, so the agent being watched can't forge them.
+- Hook reports are accepted only from the Fenceline hook started directly by a top-level Claude Code process, so the agent being watched can't forge them by running the hook from its shell (but see the `exec` gap above).
 - Tool calls that never finish, such as an interrupted one, are closed at the next prompt, at the end of Claude's turn, or after 11 minutes, so they can't hide later activity.
 - Fenceline's own processes, Claude Code's internal `git` calls and its bookkeeping files are filtered out.
 - Lite samples every 300 ms during tool calls and every 2 s between them, about 85% fewer `lsof` runs while idle.

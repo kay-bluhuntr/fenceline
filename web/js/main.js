@@ -13,6 +13,7 @@ import { initLedger, setStatus, setQuiet, statsChanged } from './ledger.js';
 import * as feed from './feed.js';
 import { initDayCard, showDay } from './daycard.js';
 import { SCRIPT, INJECT } from './demo.js';
+import * as con from './console.js';
 
 const $ = (s) => document.querySelector(s);
 const wrap = $('#mapwrap'), clockEl = $('#clock');
@@ -35,8 +36,7 @@ function frame(now) {
   lastTick = now;
   if (state.playing) { schedule(); step(dt * state.speed); }
   ageHighlights(dt);
-  render();
-  state.renders++;
+  if (view === 'map') { render(); state.renders++; }   // events still flow to the console while the map is hidden
   updateClock();
   if (activity()) rafId = requestAnimationFrame(frame);
 }
@@ -66,8 +66,31 @@ function warmup(sec) {
   setQuiet(false);
 }
 
+/* ---------- views ---------- */
+// The console is the default: a table a security team can filter and export. The map is a tab.
+let view = 'console';
+const viewParam = new URLSearchParams(location.search).get('view');
+function savedView() { try { return localStorage.getItem('fenceline.view'); } catch { return null; } }
+function setView(v) {
+  view = v === 'map' ? 'map' : 'console';
+  $('#consoleView').hidden = view !== 'console';
+  $('#mapView').hidden = view !== 'map';
+  $('.hud').hidden = view !== 'map';   // it counts as the map plays; the console's coverage line counts everything
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === view ? 'true' : 'false'));
+  try { localStorage.setItem('fenceline.view', view); } catch { /* private window */ }
+  wake();
+}
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+
 /* ---------- wiring ---------- */
 hooks.onBreach = flash;
+// File replays reach the console all at once on load; demo and live events as they happen.
+hooks.onEvent = (e) => { if (state.mode !== 'file') con.addEvent(e); };
+con.initConsole({
+  coverage: $('#coverage'), count: $('#cCount'), rows: $('#cRows'), exportBtn: $('#exportBtn'),
+  fAgent: $('#fAgent'), fSession: $('#fSession'), fZone: $('#fZone'), fVerdict: $('#fVerdict'), fUnreported: $('#fUnreported'), fText: $('#fText')
+});
+feed.onStatus(con.setObserver);
 hooks.onWorkspace = () => { $('#wsLabel').textContent = workspaceHeading(); };
 
 initRender($('#map'), wrap);
@@ -120,9 +143,11 @@ function setMode(m, force = false) {
   $('#modePill').textContent = PILL[m];
   $('#inject').disabled = m !== 'demo';
   clearWorld();
+  con.clearConsole();
+  con.setFeedLabel({ demo: 'Demo (simulated)', file: 'Replay file', live: 'Live' }[m]);
   updateShare();
   if (m === 'demo') { warmup(6); setStatus('Scripted demo events. Switch to Replay file or Live to drive the map with your own events.'); }
-  else if (m === 'file') { if (feed.hasReplay()) feed.startReplay(); else setStatus('Choose a Fenceline event log or a Claude Code session file, or drop one onto the page.'); }
+  else if (m === 'file') { if (feed.hasReplay()) { feed.startReplay(); con.loadRaw(feed.replayItems()); } else setStatus('Choose a Fenceline event log or a Claude Code session file, or drop one onto the page.'); }
   else {
     setStatus(feed.liveHint());
     if (location.protocol !== 'file:') feed.connect();
@@ -156,6 +181,7 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw);
 new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
 new ResizeObserver(() => {
+  if (!wrap.clientWidth) return;   // the map tab is hidden
   const portrait = resize();
   if (portrait !== state.portrait) setLayout(portrait);
   wake();
@@ -181,7 +207,7 @@ if (!feed.isLocalPage) {
   $('#sampleReplays').hidden = false;
   $('#brandSub').textContent = 'Simulated session';
 }
-feed.onReplayLoaded(updateShare);
+feed.onReplayLoaded(() => { updateShare(); con.loadRaw(feed.replayItems()); });
 initDayCard($('#dayCard'));
 feed.onTranscriptDay(showDay);
 
@@ -203,6 +229,7 @@ document.addEventListener('drop', (ev) => {
 setLayout(resize());
 restoreSlots();
 resetWorld();
+setView(viewParam || savedView() || 'console');
 setMode(startMode, true);
 if (replayParam) feed.loadReplayUrl(replayParam);
 statsChanged(state.stats);
